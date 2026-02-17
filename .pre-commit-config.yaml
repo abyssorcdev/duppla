@@ -1,0 +1,83 @@
+# Pre-commit hooks configuration
+# See https://pre-commit.com for more information
+
+repos:
+  # Ruff - Linter y Formatter ultra-rápido para Python
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.5  # Ruff version
+    hooks:
+      # Run the linter
+      - id: ruff
+        name: ruff (linting)
+        args: [--fix, --config, backend/ruff.toml]  # Especifica ubicación del config
+        types_or: [python, pyi]
+        files: ^backend/
+
+      # Run the formatter
+      - id: ruff-format
+        name: ruff (formatting)
+        args: [--config, backend/ruff.toml]  # Especifica ubicación del config
+        types_or: [python, pyi]
+        files: ^backend/
+
+  # Pre-commit hooks básicos
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Prevenir commits a main/master directamente
+      - id: no-commit-to-branch
+        args: ['--branch', 'main', '--branch', 'master']
+
+      # Verificar que archivos terminen con newline
+      - id: end-of-file-fixer
+        exclude: ^(.*\.min\.(js|css)|.*\.svg)$
+
+      # Remover trailing whitespace
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      # Verificar que YAML sea válido
+      - id: check-yaml
+        args: ['--unsafe']  # Para docker-compose con anchors
+
+      # Verificar que JSON sea válido
+      - id: check-json
+
+      # Verificar que no haya archivos grandes
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+      # Verificar merge conflicts
+      - id: check-merge-conflict
+
+      # Verificar que no haya sintaxis DEBUG en Python
+      - id: debug-statements
+
+  # Verificar secretos (opcional pero recomendado)
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            .*\.lock|
+            .*package-lock\.json|
+            .*/\.env\.example|
+            .*/alembic\.ini
+          )$
+
+# Configuración global
+default_language_version:
+  python: python3.11
+
+# Excluir directorios
+exclude: |
+  (?x)^(
+    .*/migrations/.*|
+    .*/alembic/versions/.*|
+    .*/__pycache__/.*|
+    .*/\.venv/.*|
+    .*/node_modules/.*|
+    .*\.egg-info/.*
+  )$

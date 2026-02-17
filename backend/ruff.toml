@@ -1,0 +1,89 @@
+# Ruff configuration file
+# This replaces: flake8, pylint, black, isort, mypy, and bandit
+
+# Line length configuration (equivalent to black/isort)
+line-length = 120
+
+# Target Python version
+target-version = "py38"
+
+# Exclude directories from linting
+exclude = [
+    ".venv",
+    ".env",
+    "venv",
+    "env",
+    "build",
+    "dist",
+    "migrations",
+    ".code_quality",
+    "tests",
+    "alembic",
+    "setup.py",
+    ".git",
+    "__pycache__",
+    "*.egg-info",
+    "src/shared/contracts/**",  # Auto-generated API contracts (OpenAPI, GraphQL)
+]
+
+[lint]
+# Enable rules equivalent to flake8, isort, bandit, and basic type checking
+select = [
+    "E",     # pycodestyle errors (equivalent to flake8)
+    "W",     # pycodestyle warnings (equivalent to flake8)
+    "F",     # pyflakes (equivalent to flake8)
+    "I",     # isort (import sorting)
+    "S",     # flake8-bandit (security checks, equivalent to bandit)
+    "B",     # flake8-bugbear (additional bug detection)
+    "C4",    # flake8-comprehensions (better list/dict/set comprehensions)
+    "UP",    # pyupgrade (modern Python syntax)
+    "ANN",   # flake8-annotations (type annotations checking)
+    "SIM",   # flake8-simplify (code simplification)
+    "RUF",   # Ruff-specific rules
+]
+
+# Ignore specific rules
+ignore = [
+    "ANN101",  # Missing type annotation for self in method
+    "ANN102",  # Missing type annotation for cls in classmethod
+    "S113",    # Equivalent to bandit B113 (skipped in original config)
+    "ANN204",  # Missing return type annotation for __init__ (redundant)
+    "I001"
+]
+
+# Allow fix for all enabled rules when running `ruff check --fix`
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[lint.per-file-ignores]
+# Ignore assert statements in test files
+"**/test_*.py" = ["S101"]
+"**/tests/*.py" = ["S101"]
+
+[lint.flake8-annotations]
+# Allow dynamically typed expressions in type annotations
+allow-star-arg-any = true
+
+[lint.flake8-bugbear]
+# Permitir llamadas por defecto específicas de FastAPI sin desactivar B008 globalmente
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Security",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.File",
+    "fastapi.Form",
+]
+
+[format]
+# Use Ruff's formatter (equivalent to black)
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -1,0 +1,90 @@
+# ============================================================================
+# GITIGNORE - Duppla Project (Root Level)
+# ============================================================================
+# Solo reglas GENERALES que aplican a todo el proyecto
+# Backend y Frontend tienen sus propios .gitignore
+# ============================================================================
+
+# ============================================================================
+# IDEs and Editors
+# ============================================================================
+.vscode/
+.cursor/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-*
+
+# ============================================================================
+# OS Files
+# ============================================================================
+.DS_Store
+Thumbs.db
+
+# ============================================================================
+# Environment Variables
+# ============================================================================
+# NUNCA commitear archivos .env con secretos reales
+.env
+.env.local
+.env.*.local
+!.env.example  # Permitir archivos .env.example
+
+# ============================================================================
+# Logs (Cualquier nivel del proyecto)
+# ============================================================================
+*.log
+logs/
+*.log.*
+
+# ============================================================================
+# Temporary Files
+# ============================================================================
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# ============================================================================
+# Docker (Root level)
+# ============================================================================
+*.pid
+docker-compose.override.yml
+
+# Volumes data (si usas volumes locales)
+# postgres_data/
+# redis_data/
+
+# ============================================================================
+# Tools & CI/CD (Root level)
+# ============================================================================
+
+# Pre-commit
+.pre-commit-config-local.yaml
+
+# Coverage reports (si están en raíz)
+.coverage
+coverage/
+*.coverage
+
+# ============================================================================
+# Project Specific (Root level)
+# ============================================================================
+
+# Documentación generada
+docs/_build/
+
+# Archivos de planificación interna (NO commitear)
+docs/tasks/
+
+# Scripts temporales de desarrollo
+scripts/temp_*.sh
+scripts/test_*.py
+
+# Archivos de prueba local
+*_local.py
+*_local.sh
+
+
+docs/tasks/
