@@ -28,12 +28,11 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import Base for autogenerate support
-# NOTE: This will be updated once we create the models
-# from app.infrastructure.database.models import Base
-# target_metadata = Base.metadata
+from app.infrastructure.database.models import Base
 
-# For now, set to None (manual migrations)
-target_metadata = None
+# add your model's MetaData object here
+# for 'autogenerate' support
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
