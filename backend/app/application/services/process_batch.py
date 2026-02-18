@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.application.dtos.job_dtos import JobResponse, ProcessBatchRequest
 from app.domain.entities.job import Job
 from app.domain.exceptions import DocumentNotFoundException
+from app.infrastructure.notifications.tasks.document_tasks import process_documents_batch
 from app.infrastructure.repositories.document_repository import DocumentRepository
 from app.infrastructure.repositories.job_repository import JobRepository
 
@@ -45,9 +46,7 @@ class ProcessBatch:
 
         created_job = self.job_repository.create(job)
 
-        # TODO: Publish Celery task (will be implemented in Fase 6)
-        # from app.infrastructure.notifications.tasks.celery_tasks import process_batch
-        # process_batch.delay(str(created_job.id), created_job.document_ids)
+        process_documents_batch.delay(str(created_job.id), created_job.document_ids)
 
         return JobResponse(
             job_id=created_job.id,
