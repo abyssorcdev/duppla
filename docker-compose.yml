@@ -94,7 +94,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A app.infrastructure.celery_app worker --loglevel=info
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=4
 
   # Flower - Celery Monitoring Tool (Optional)
   flower:
@@ -112,7 +112,7 @@ services:
     depends_on:
       - redis
       - celery-worker
-    command: celery -A app.infrastructure.celery_app flower --port=5555
+    command: celery -A worker.celery_app flower --port=5555
 
   # React Frontend (Development) - Optional
   # Uncomment when ready to implement frontend
