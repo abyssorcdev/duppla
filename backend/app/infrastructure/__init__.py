@@ -12,7 +12,7 @@ from app.infrastructure.database import (
     engine,
     get_db,
 )
-from app.infrastructure.notifications import WebhookClient, celery_app
+from app.infrastructure.notifications import HttpClient, celery_app
 from app.infrastructure.repositories import (
     AuditRepository,
     DocumentRepository,
@@ -25,10 +25,10 @@ __all__ = [
     "Base",
     "DocumentModel",
     "DocumentRepository",
+    "HttpClient",
     "JobModel",
     "JobRepository",
     "SessionLocal",
-    "WebhookClient",
     "celery_app",
     "engine",
     "get_db",
