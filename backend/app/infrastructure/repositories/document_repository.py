@@ -7,11 +7,14 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.domain.entities.document import Document
 from app.domain.exceptions import DocumentNotFoundException
 from app.infrastructure.database.models import DocumentModel
+
+_SKIP_AUDIT_SQL = text("SET LOCAL app.skip_audit = 'application'")
 
 
 class FilterOperator(str, Enum):
@@ -42,13 +45,14 @@ class DocumentRepository:
         Returns:
             Document entity with assigned ID
         """
+        self.db.execute(_SKIP_AUDIT_SQL)
         db_document = DocumentModel(
             type=document.type,
             amount=document.amount,
             status=document.status,
             created_at=document.created_at,
             updated_at=document.updated_at,
-            metadata=document.metadata,
+            extra_data=document.metadata,
             created_by=document.created_by,
         )
         self.db.add(db_document)
@@ -92,9 +96,12 @@ class DocumentRepository:
         if not db_document:
             raise DocumentNotFoundException(document_id)
 
+        self.db.execute(_SKIP_AUDIT_SQL)
+        field_name_map = {"metadata": "extra_data"}
         for key, value in data.items():
-            if hasattr(db_document, key):
-                setattr(db_document, key, value)
+            orm_key = field_name_map.get(key, key)
+            if hasattr(db_document, orm_key):
+                setattr(db_document, orm_key, value)
 
         self.db.commit()
         self.db.refresh(db_document)
@@ -177,6 +184,6 @@ class DocumentRepository:
             status=db_document.status,
             created_at=db_document.created_at,
             updated_at=db_document.updated_at,
-            metadata=db_document.metadata or {},
+            metadata=db_document.extra_data or {},
             created_by=db_document.created_by,
         )

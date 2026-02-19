@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.application.dtos.document_dtos import DocumentResponse, UpdateDocumentRequest
 from app.domain.exceptions import DocumentNotFoundException
+from app.infrastructure.repositories.audit_repository import AuditRepository
 from app.infrastructure.repositories.document_repository import DocumentRepository
 
 
@@ -20,6 +21,7 @@ class UpdateDocument:
             db: Database session
         """
         self.repository = DocumentRepository(db)
+        self.audit_repository = AuditRepository(db)
 
     def execute(self, document_id: int, request: UpdateDocumentRequest) -> DocumentResponse:
         """Execute document update.
@@ -55,6 +57,14 @@ class UpdateDocument:
 
         update_data = {key: value for key, value in update_mapping.items() if value is not None}
         updated_document = self.repository.update(document_id, update_data)
+
+        self.audit_repository.log_action(
+            document_id=document_id,
+            action="updated",
+            old_value=str({k: getattr(document, k, None) for k in update_data}),
+            new_value=str(update_data),
+            user_id=request.user_id,
+        )
 
         return DocumentResponse(
             id=updated_document.id,

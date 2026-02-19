@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.application.dtos.document_dtos import CreateDocumentRequest, DocumentResponse
 from app.domain.entities.document import Document
+from app.infrastructure.repositories.audit_repository import AuditRepository
 from app.infrastructure.repositories.document_repository import DocumentRepository
 
 
@@ -20,6 +21,7 @@ class CreateDocument:
             db: Database session
         """
         self.repository = DocumentRepository(db)
+        self.audit_repository = AuditRepository(db)
 
     def execute(self, request: CreateDocumentRequest) -> DocumentResponse:
         """Execute document creation.
@@ -41,6 +43,13 @@ class CreateDocument:
         )
 
         created_document = self.repository.create(document)
+
+        self.audit_repository.log_action(
+            document_id=created_document.id,
+            action="created",
+            new_value=f"type={created_document.type}, amount={created_document.amount}",
+            user_id=request.created_by,
+        )
 
         return DocumentResponse(
             id=created_document.id,

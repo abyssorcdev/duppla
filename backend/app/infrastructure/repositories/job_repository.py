@@ -6,11 +6,14 @@ Handles job persistence and retrieval operations.
 from typing import Any, Optional
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.domain.entities.job import Job
 from app.domain.exceptions import JobNotFoundException
 from app.infrastructure.database.models import JobModel
+
+_SKIP_AUDIT_SQL = text("SET LOCAL app.skip_audit = 'application'")
 
 
 class JobRepository:
@@ -42,6 +45,7 @@ class JobRepository:
             error_message=job.error_message,
             result=job.result,
         )
+        self.db.execute(_SKIP_AUDIT_SQL)
         self.db.add(db_job)
         self.db.commit()
         self.db.refresh(db_job)
@@ -83,7 +87,7 @@ class JobRepository:
         if not db_job:
             raise JobNotFoundException(str(job_id))
 
-        # Update status
+        self.db.execute(_SKIP_AUDIT_SQL)
         db_job.status = status
 
         # Update optional fields

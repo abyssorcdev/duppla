@@ -3,8 +3,6 @@
 Handles document status transitions with state machine validation and audit logging.
 """
 
-from typing import Optional
-
 from sqlalchemy.orm import Session
 
 from app.application.dtos.document_dtos import DocumentResponse, UpdateStatusRequest
@@ -29,18 +27,12 @@ class UpdateStatus:
         self.document_repository = DocumentRepository(db)
         self.audit_repository = AuditRepository(db)
 
-    def execute(
-        self,
-        document_id: int,
-        request: UpdateStatusRequest,
-        user_id: Optional[str] = None,
-    ) -> DocumentResponse:
+    def execute(self, document_id: int, request: UpdateStatusRequest) -> DocumentResponse:
         """Execute status update with validation and audit logging.
 
         Args:
             document_id: Document ID to update
             request: Status update request
-            user_id: Optional user performing the action
 
         Returns:
             Updated document response
@@ -50,6 +42,7 @@ class UpdateStatus:
             InvalidStateTransitionException: If transition is not allowed
         """
         document = self.document_repository.get_by_id(document_id)
+        user_id = request.user_id
 
         if not document:
             raise DocumentNotFoundException(document_id)
@@ -61,10 +54,11 @@ class UpdateStatus:
         document.change_status(request.new_status)
         updated_document = self.document_repository.update_status(document_id, request.new_status)
 
-        self.audit_repository.log_state_change(
+        self.audit_repository.log_action(
             document_id=document_id,
-            old_state=old_status,
-            new_state=request.new_status,
+            action="state_change",
+            old_value=old_status,
+            new_value=request.new_status,
             user_id=user_id,
         )
 
