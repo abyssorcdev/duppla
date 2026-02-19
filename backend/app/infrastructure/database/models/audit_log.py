@@ -3,7 +3,7 @@
 Maps audit log to audit_logs database table.
 """
 
-from typing import Any, Dict
+from typing import Any, ClassVar, Dict
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.sql import func
@@ -27,9 +27,10 @@ class AuditLogModel(Base):
     """
 
     __tablename__ = "audit_logs"
+    __table_args__: ClassVar[dict] = {"schema": "finance"}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
+    document_id = Column(Integer, ForeignKey("finance.documents.id"), nullable=False)
     action = Column(String(50), nullable=False)
     old_value = Column(Text, nullable=True)
     new_value = Column(Text, nullable=True)

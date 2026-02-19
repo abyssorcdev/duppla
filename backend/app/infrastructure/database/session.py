@@ -11,11 +11,10 @@ from app.core.config import settings
 # Create SQLAlchemy engine
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True,  # Enable connection health checks
-    echo=settings.ENV == "dev",  # Log SQL in dev
+    pool_pre_ping=True,
+    echo=settings.SQL_ECHO,
 )
 
-# Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

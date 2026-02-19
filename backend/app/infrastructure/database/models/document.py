@@ -3,7 +3,7 @@
 Maps Document domain entity to documents database table.
 """
 
-from typing import Any, Dict
+from typing import Any, ClassVar, Dict
 
 from sqlalchemy import CheckConstraint, Column, DateTime, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
@@ -27,6 +27,7 @@ class DocumentModel(Base):
     """
 
     __tablename__ = "documents"
+    __table_args__: ClassVar[dict] = {"schema": "finance"}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String(50), nullable=False)
@@ -34,7 +35,8 @@ class DocumentModel(Base):
     status = Column(String(20), nullable=False, default="draft")
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
-    metadata = Column(JSONB, nullable=False, default={})
+    # Named "extra_data" to avoid conflict with SQLAlchemy's reserved "metadata" attribute
+    extra_data = Column("metadata", JSONB, nullable=False, default={})
     created_by = Column(String(100), nullable=True)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -50,6 +52,6 @@ class DocumentModel(Base):
             "status": self.status,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
-            "metadata": self.metadata,
+            "metadata": self.extra_data,
             "created_by": self.created_by,
         }

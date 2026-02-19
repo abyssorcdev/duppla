@@ -3,7 +3,7 @@
 Maps Job domain entity to jobs database table.
 """
 
-from typing import Any, Dict
+from typing import Any, ClassVar, Dict
 
 from sqlalchemy import ARRAY, Column, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
@@ -26,6 +26,7 @@ class JobModel(Base):
     """
 
     __tablename__ = "jobs"
+    __table_args__: ClassVar[dict] = {"schema": "finance"}
 
     id = Column(PGUUID(as_uuid=True), primary_key=True)
     document_ids = Column(ARRAY(Integer), nullable=False)
