@@ -22,15 +22,17 @@ class StateMachine:
         REJECTED → * (final state, immutable)
     """
 
-    # Transition matrix: current_state → [allowed_states]
     TRANSITIONS: ClassVar[Dict[str, List[str]]] = {
-        DocumentStatus.DRAFT.value: [DocumentStatus.PENDING.value],
+        DocumentStatus.DRAFT.value: [
+            DocumentStatus.PENDING.value,
+            DocumentStatus.REJECTED.value,
+        ],
         DocumentStatus.PENDING.value: [
             DocumentStatus.APPROVED.value,
             DocumentStatus.REJECTED.value,
         ],
-        DocumentStatus.APPROVED.value: [],  # Final state, no transitions
-        DocumentStatus.REJECTED.value: [],  # Final state, no transitions
+        DocumentStatus.APPROVED.value: [],
+        DocumentStatus.REJECTED.value: [],
     }
 
     @classmethod

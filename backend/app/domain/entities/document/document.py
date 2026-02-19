@@ -5,7 +5,7 @@ Business logic for financial documents (invoices, receipts, etc).
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app.domain.entities.document.status import DocumentStatus
 from app.domain.exceptions import (
@@ -14,6 +14,10 @@ from app.domain.exceptions import (
     InvalidStateTransitionException,
 )
 from app.domain.state_machine import StateMachine
+
+
+AUTO_PROCESSING_AMOUNT_LIMIT = Decimal("10_000_000")
+AUTO_PROCESSING_REQUIRED_METADATA: List[str] = ["client", "client_email"]
 
 
 class Document:
@@ -120,6 +124,26 @@ class Document:
             self.metadata = metadata
 
         self.updated_at = datetime.utcnow()
+
+    def evaluate_for_auto_processing(self) -> tuple[str, str | None]:
+        """Determine the status this document should receive after automated batch processing.
+
+        Business rules (evaluated in order):
+        1. amount > 10,000,000 → rejected (too large for automated approval, requires manual review)
+        2. Missing required metadata fields (client, email) → rejected (incomplete document)
+        3. All rules pass → pending (ready for human review)
+
+        Returns:
+            Tuple of (new_status, rejection_reason_or_None)
+        """
+        if self.amount > AUTO_PROCESSING_AMOUNT_LIMIT:
+            return DocumentStatus.REJECTED.value, "amount_exceeds_limit"
+
+        missing_fields = [f for f in AUTO_PROCESSING_REQUIRED_METADATA if not self.metadata.get(f)]
+        if missing_fields:
+            return DocumentStatus.REJECTED.value, "missing_required_fields"
+
+        return DocumentStatus.PENDING.value, None
 
     def can_edit(self) -> bool:
         """Check if document can be edited."""
