@@ -4,12 +4,16 @@ Main application configuration with routes and middleware.
 """
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.middleware import domain_exception_handler
+from app.api.middleware import domain_exception_handler, validation_exception_handler
 from app.api.routes import batch_router, documents_router
 from app.core.config import settings
+from app.core.logging import setup_logging
 from app.domain.exceptions import DomainException
+
+setup_logging(settings.LOG_LEVEL)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -31,6 +35,7 @@ app.add_middleware(
 
 # Exception handlers
 app.add_exception_handler(DomainException, domain_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 # Include routers
 app.include_router(documents_router, prefix=settings.API_V1_STR)

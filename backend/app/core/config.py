@@ -1,5 +1,7 @@
+from typing import Any, Dict, List
+
 from pydantic_settings import BaseSettings
-from typing import List
+from fastapi import HTTPException, status
 
 
 class Settings(BaseSettings):
@@ -15,6 +17,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     ENV: str = "dev"
     LOG_LEVEL: str = "INFO"
+    SQL_ECHO: bool = False
 
     # Database
     POSTGRES_USER: str = "postgres"
@@ -50,15 +53,28 @@ class Settings(BaseSettings):
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
 
     # Security - API Keys
-    VALID_API_KEYS: str = "dev-key-123,test-key-456"
+    VALID_API_KEYS: dict = {}
 
-    @property
-    def API_KEYS_LIST(self) -> List[str]:
-        """Parse comma-separated API keys into a list."""
-        return [key.strip() for key in self.VALID_API_KEYS.split(",") if key.strip()]
+    def API_KEYS_ALLOWED(self, method: str) -> List[str]:
+        """Get the list of API keys allowed for a given HTTP method (GET, POST, PUT, DELETE)."""
+        keys = self.VALID_API_KEYS.get(method.lower(), [])
+        if not keys:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No API keys found for this request method.",
+            )
+        return keys
 
-    # Webhook
-    WEBHOOK_URL: str = "https://webhook.site/your-unique-url"
+    NOTIFICATION_CHANNELS: List[Dict[str, Any]] = [
+        {
+            "type": "http",
+            "name": "external_monitoring",
+            "url": "https://webhook.site/a68da993-7a22-4521-a267-507e7f94b1ac",
+            "headers": {
+                "Content-Type": "application/json",
+            },
+        },
+    ]
 
     # CORS
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
@@ -67,8 +83,10 @@ class Settings(BaseSettings):
     DEFAULT_PAGE_SIZE: int = 10
     MAX_PAGE_SIZE: int = 100
 
-    # Cache
-    API_KEY_CACHE_TTL: int = 300  # 5 minutes in seconds
+    # Cache & Rate limiting
+    API_KEY_CACHE_TTL: int = 300  # seconds — how long a validated key stays cached
+    RATE_LIMIT_REQUESTS: int = 10  # max requests per window per API key
+    RATE_LIMIT_WINDOW_SECONDS: int = 60  # sliding window size in seconds
 
     class Config:
         case_sensitive = True
