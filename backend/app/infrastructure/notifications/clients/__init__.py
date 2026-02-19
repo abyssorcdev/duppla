@@ -1,8 +1,8 @@
 """Notification clients package.
 
-Contains clients for sending notifications (webhooks, emails, SMS, etc).
+Contains low-level clients for sending event payloads (HTTP, SMS, etc).
 """
 
-from app.infrastructure.notifications.clients.webhook_client import WebhookClient
+from app.infrastructure.notifications.clients.http_client import HttpClient
 
-__all__ = ["WebhookClient"]
+__all__ = ["HttpClient"]
