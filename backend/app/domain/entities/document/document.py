@@ -17,7 +17,7 @@ from app.domain.state_machine import StateMachine
 
 
 AUTO_PROCESSING_AMOUNT_LIMIT = Decimal("10_000_000")
-AUTO_PROCESSING_REQUIRED_METADATA: List[str] = ["client", "client_email"]
+AUTO_PROCESSING_REQUIRED_METADATA: List[str] = ["client", "email"]
 
 
 class Document:

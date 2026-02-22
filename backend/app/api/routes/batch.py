@@ -1,23 +1,20 @@
-"""Batch processing and job API routes.
+"""Batch processing API routes.
 
-Endpoints for batch operations and job status.
+Endpoints for triggering batch document processing.
+Draft documents are evaluated and moved to pending/rejected.
+Rejected documents included in the batch are reset to draft.
 """
-
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.dependencies import (
-    get_get_job_status_service,
-    get_process_batch_service,
-)
-from app.api.middleware.auth import verify_api_key
+from app.api.dependencies import get_process_batch_service
+from app.api.middleware.jwt_auth import require_loader
 from app.application.dtos.job_dtos import JobResponse, ProcessBatchRequest
-from app.application.services import GetJobStatus, ProcessBatch
+from app.application.services import ProcessBatch
 
 router = APIRouter(
-    tags=["batch", "jobs"],
-    dependencies=[Depends(verify_api_key)],
+    tags=["batch"],
+    dependencies=[Depends(require_loader())],
 )
 
 
@@ -35,31 +32,12 @@ async def process_batch(
 
     - **document_ids**: List of document IDs to process
 
-    Returns a job ID with status 'pending'.
-    The actual processing happens asynchronously via Celery.
-    Use GET /jobs/{job_id} to check the job status.
+    Behavior per document status:
+    - **draft**    → evaluates business rules → moves to pending or rejected
+    - **rejected** → resets to draft (user corrects and re-submits in a new batch)
+    - **other**    → skipped
+
+    Returns a job ID. Processing is asynchronous via Celery.
+    Use GET /jobs/{job_id} to poll the result.
     """
     return service.execute(request)
-
-
-@router.get(
-    "/jobs/{job_id}",
-    response_model=JobResponse,
-    summary="Get job status",
-)
-async def get_job_status(
-    job_id: UUID,
-    service: GetJobStatus = Depends(get_get_job_status_service),
-) -> JobResponse:
-    """Get the status of a batch processing job.
-
-    - **job_id**: Job UUID to query
-
-    Returns job details including:
-    - status: pending, processing, completed, or failed
-    - created_at: Job creation timestamp
-    - completed_at: Completion timestamp (if finished)
-    - result: Processing results (if completed)
-    - error_message: Error details (if failed)
-    """
-    return service.execute(job_id)

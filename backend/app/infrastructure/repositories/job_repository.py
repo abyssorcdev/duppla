@@ -3,7 +3,7 @@
 Handles job persistence and retrieval operations.
 """
 
-from typing import Any, Optional
+from typing import Any, List, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import text
@@ -67,6 +67,32 @@ class JobRepository:
             return None
 
         return self._to_entity(db_job)
+
+    def list_all(
+        self,
+        status: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 10,
+    ) -> Tuple[List[Job], int]:
+        """List jobs with optional status filter and pagination.
+
+        Args:
+            status: Optional status filter
+            skip: Number of records to skip
+            limit: Max records to return
+
+        Returns:
+            Tuple of (list of Job entities, total count)
+        """
+        query = self.db.query(JobModel)
+
+        if status:
+            query = query.filter(JobModel.status == status)
+
+        total = query.count()
+        db_jobs = query.order_by(JobModel.created_at.desc()).offset(skip).limit(limit).all()
+
+        return [self._to_entity(j) for j in db_jobs], total
 
     def update_status(self, job_id: UUID, status: str, **kwargs: Any) -> Job:
         """Update job status and related fields.

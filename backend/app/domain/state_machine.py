@@ -12,14 +12,15 @@ class StateMachine:
     """State machine for validating document state transitions.
 
     Valid transitions:
-        DRAFT → PENDING
-        PENDING → APPROVED
-        PENDING → REJECTED
+        DRAFT    → PENDING
+        DRAFT    → REJECTED  (direct rejection by worker)
+        PENDING  → APPROVED
+        PENDING  → REJECTED
+        REJECTED → DRAFT     (re-open for correction and re-processing)
 
     Invalid transitions (examples):
-        DRAFT → APPROVED (must go through PENDING)
-        APPROVED → * (final state, immutable)
-        REJECTED → * (final state, immutable)
+        DRAFT    → APPROVED  (must go through PENDING)
+        APPROVED → *         (final state, immutable)
     """
 
     TRANSITIONS: ClassVar[Dict[str, List[str]]] = {
@@ -32,7 +33,9 @@ class StateMachine:
             DocumentStatus.REJECTED.value,
         ],
         DocumentStatus.APPROVED.value: [],
-        DocumentStatus.REJECTED.value: [],
+        DocumentStatus.REJECTED.value: [
+            DocumentStatus.DRAFT.value,
+        ],
     }
 
     @classmethod

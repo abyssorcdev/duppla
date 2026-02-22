@@ -32,6 +32,16 @@ class JobResponse(BaseModel):
         from_attributes = True
 
 
+class JobListResponse(BaseModel):
+    """Paginated response for job listing."""
+
+    items: List[JobResponse] = Field(..., description="List of jobs")
+    total: int = Field(..., description="Total number of jobs")
+    page: int = Field(..., description="Current page number")
+    page_size: int = Field(..., description="Number of items per page")
+    total_pages: int = Field(..., description="Total number of pages")
+
+
 class WebhookDocumentDetail(BaseModel):
     """Individual document result in webhook payload."""
 

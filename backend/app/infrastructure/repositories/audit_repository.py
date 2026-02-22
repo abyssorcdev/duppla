@@ -1,10 +1,11 @@
-"""Audit log repository for tracking document actions.
+"""Audit log repository.
 
-Handles audit log persistence operations for all document lifecycle events.
+Generic audit trail for all tables (documents, jobs, users).
+Uses (table_name, record_id) to avoid coupling to a specific table.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -12,97 +13,72 @@ from app.infrastructure.database.models import AuditLogModel
 
 
 class AuditRepository:
-    """Repository for audit log persistence.
-
-    Supports logging various document actions:
-    - created: Document creation
-    - updated: Document field updates
-    - deleted: Document deletion
-    - state_change: Document status transitions
-    """
-
     def __init__(self, db: Session) -> None:
-        """Initialize repository with database session.
-
-        Args:
-            db: SQLAlchemy database session
-        """
         self.db = db
 
-    def log_action(
+    # ── Write ─────────────────────────────────────────────────────────────────
+
+    def log(
         self,
-        document_id: int,
+        table_name: str,
+        record_id: str,
         action: str,
         old_value: Optional[str] = None,
         new_value: Optional[str] = None,
         user_id: Optional[str] = None,
     ) -> None:
-        """Log a document action.
+        """Append a generic audit entry.
 
         Args:
-            document_id: Document ID
-            action: Action performed (created, updated, deleted, state_change, field_updated)
-            old_value: Previous value (optional, any field value as text)
-            new_value: New value (optional, any field value as text)
-            user_id: Optional user identifier
-
-        Example:
-            ```python
-            # Log document creation
-            audit_repo.log_action(doc_id, "created", user_id="user123")
-
-            # Log state change
-            audit_repo.log_action(
-                doc_id,
-                "state_change",
-                old_value="draft",
-                new_value="pending",
-                user_id="user123"
-            )
-
-            # Log field update (amount)
-            audit_repo.log_action(
-                doc_id,
-                "field_updated",
-                old_value="100.50",
-                new_value="200.75",
-                user_id="user123"
-            )
-
-            # Log deletion
-            audit_repo.log_action(doc_id, "deleted", user_id="user123")
-            ```
+            table_name: Affected table (e.g. 'documents', 'jobs', 'users')
+            record_id:  String-serialized PK of the affected row
+            action:     'created' | 'updated' | 'state_change' | 'field_updated' | 'deleted'
+            old_value:  Previous value (optional)
+            new_value:  New value (optional)
+            user_id:    Who triggered the action
         """
-        audit_log = AuditLogModel(
-            document_id=document_id,
+        entry = AuditLogModel(
+            table_name=table_name,
+            record_id=str(record_id),
             action=action,
             old_value=old_value,
             new_value=new_value,
             timestamp=datetime.utcnow(),
             user_id=user_id,
         )
-        self.db.add(audit_log)
+        self.db.add(entry)
         self.db.commit()
 
-    def log_state_change(
-        self,
-        document_id: int,
-        old_state: str,
-        new_state: str,
-        user_id: Optional[str] = None,
-    ) -> None:
-        """Log a document state change (convenience method).
+    # ── Convenience shorthands ────────────────────────────────────────────────
 
-        Args:
-            document_id: Document ID
-            old_state: Previous state
-            new_state: New state
-            user_id: Optional user identifier
-        """
-        self.log_action(
-            document_id=document_id,
-            action="state_change",
-            old_value=old_state,
-            new_value=new_state,
-            user_id=user_id,
-        )
+    def log_created(self, table_name: str, record_id: str, summary: str, user_id: Optional[str] = None) -> None:
+        self.log(table_name, record_id, "created", new_value=summary, user_id=user_id)
+
+    def log_state_change(
+        self, table_name: str, record_id: str, old_state: str, new_state: str, user_id: Optional[str] = None
+    ) -> None:
+        self.log(table_name, record_id, "state_change", old_value=old_state, new_value=new_state, user_id=user_id)
+
+    def log_field_updated(
+        self, table_name: str, record_id: str, old_value: str, new_value: str, user_id: Optional[str] = None
+    ) -> None:
+        self.log(table_name, record_id, "field_updated", old_value=old_value, new_value=new_value, user_id=user_id)
+
+    # ── Read ──────────────────────────────────────────────────────────────────
+
+    def list_recent(
+        self,
+        skip: int = 0,
+        limit: int = 50,
+        action: Optional[str] = None,
+        table_name: Optional[str] = None,
+    ) -> Tuple[List[AuditLogModel], int]:
+        """Return recent audit entries with optional filters."""
+        query = self.db.query(AuditLogModel)
+        if action:
+            query = query.filter(AuditLogModel.action == action)
+        if table_name:
+            query = query.filter(AuditLogModel.table_name == table_name)
+        total = query.count()
+        entries = query.order_by(AuditLogModel.timestamp.desc()).offset(skip).limit(limit).all()
+        return entries, total

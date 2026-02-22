@@ -54,13 +54,13 @@ def upgrade() -> None:
     op.create_table(
         "audit_logs",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("document_id", sa.Integer(), nullable=False),
+        sa.Column("table_name", sa.String(length=100), nullable=False),
+        sa.Column("record_id", sa.String(length=255), nullable=False),
         sa.Column("action", sa.String(length=50), nullable=False),
         sa.Column("old_value", sa.Text(), nullable=True),
         sa.Column("new_value", sa.Text(), nullable=True),
         sa.Column("timestamp", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
-        sa.Column("user_id", sa.String(length=100), nullable=True),
-        sa.ForeignKeyConstraint(["document_id"], ["finance.documents.id"]),
+        sa.Column("user_id", sa.String(length=255), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         schema="finance",
     )
