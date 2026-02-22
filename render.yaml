@@ -133,3 +133,4 @@ services:
     name: duppla-redis
     plan: free
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
