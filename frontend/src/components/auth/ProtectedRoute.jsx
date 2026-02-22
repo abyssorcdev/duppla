@@ -10,7 +10,7 @@ import useAuth from '../../hooks/useAuth'
  *   children — the protected page component.
  */
 export default function ProtectedRoute({ roles, children }) {
-  const { isAuthenticated, isPending, isActive, hasRole } = useAuth()
+  const { isAuthenticated, isPending, hasRole } = useAuth()
   const location = useLocation()
 
   if (!isAuthenticated) {

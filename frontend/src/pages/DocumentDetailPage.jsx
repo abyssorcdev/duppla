@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, Link } from 'react-router-dom'
 import { documentsApi } from '../api/documents'
 import StatusBadge from '../components/common/StatusBadge'
 import LoadingSpinner from '../components/common/LoadingSpinner'
@@ -9,7 +9,6 @@ import { formatCOP, formatDate, TYPE_LABELS, VALID_TRANSITIONS } from '../utils/
 
 export default function DocumentDetailPage() {
   const { id } = useParams()
-  const navigate = useNavigate()
   const [doc, setDoc] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -18,7 +17,7 @@ export default function DocumentDetailPage() {
   const [editError, setEditError] = useState('')
   const [showStatusModal, setShowStatusModal] = useState(false)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const { data } = await documentsApi.get(id)
@@ -28,9 +27,9 @@ export default function DocumentDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { load() }, [load])
 
   const handleUpdate = async (payload) => {
     setEditLoading(true)
