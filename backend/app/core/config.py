@@ -69,6 +69,7 @@ class Settings(BaseSettings):
             )
         return keys
 
+    WEBHOOK_URL: str = ""
     NOTIFICATION_CHANNELS: List[Dict[str, Any]] = [
         {
             "type": "http",
