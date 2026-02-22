@@ -22,25 +22,30 @@ Este diagrama muestra cómo el sistema interactúa con usuarios y sistemas exter
 
 ```mermaid
 graph TB
-    User[Usuario/Frontend<br/>Gestiona documentos financieros]
+    User["Usuario/Frontend<br/>Gestiona documentos financieros"]
 
-    System[Sistema API Documentos<br/>Gestiona creación, búsqueda y<br/>procesamiento de documentos]
+    System["Sistema API Documentos<br/>Gestiona creación, búsqueda y<br/>procesamiento de documentos"]
 
-    WebhookService[Servicio Webhook Externo<br/>webhook.site<br/>Recibe notificaciones de jobs]
+    GoogleOAuth["Google OAuth2<br/>Proveedor de identidad"]
 
-    User -->|Lee y crea documentos| System
-    User -->|Consulta estado de jobs| System
-    System -->|Envía notificaciones| WebhookService
+    WebhookService["Servicio Webhook Externo<br/>webhook.site<br/>Recibe notificaciones de jobs"]
 
-    style System fill:#1168bd,stroke:#0b4884,color:#ffffff
-    style User fill:#08427b,stroke:#052e56,color:#ffffff
-    style WebhookService fill:#999999,stroke:#6b6b6b,color:#ffffff
+    DopplerSecrets["Doppler<br/>Gestión de secretos"]
+
+    User -->|"Autenticación OAuth2"| GoogleOAuth
+    GoogleOAuth -->|"Token de identidad"| System
+    User -->|"Lee y crea documentos (JWT)"| System
+    User -->|"Consulta estado de jobs"| System
+    System -->|"Envía notificaciones"| WebhookService
+    DopplerSecrets -->|"Inyecta secretos al iniciar"| System
 ```
 
 **Descripción:**
-- **Usuario/Frontend**: Interactúa con la API para gestionar documentos financieros
-- **Sistema API Documentos**: Proporciona endpoints REST para CRUD, búsqueda con filtros y procesamiento batch asíncrono
+- **Usuario/Frontend**: Aplicación React que interactúa con la API mediante JWT
+- **Sistema API Documentos**: Endpoints REST para CRUD, búsqueda con filtros, procesamiento batch asíncrono y gestión de usuarios
+- **Google OAuth2**: Proveedor de identidad para autenticación de usuarios
 - **Servicio Webhook Externo**: Recibe notificaciones cuando se completan trabajos de procesamiento batch
+- **Doppler**: Gestiona e inyecta secretos (API keys, credenciales OAuth, JWT secret) en tiempo de arranque
 
 ---
 
@@ -50,59 +55,66 @@ Este diagrama muestra los contenedores principales del sistema y cómo se comuni
 
 ```mermaid
 graph TB
-    subgraph ClientLayer[Cliente]
-        WebApp[Aplicación Web<br/>React + Tailwind<br/>Puerto 5173]
-        APIClient[Cliente HTTP<br/>Axios]
+    subgraph ClientLayer["Cliente"]
+        WebApp["Aplicación Web<br/>React 18 + Tailwind CSS<br/>Puerto 5173"]
+        APIClient["Cliente HTTP<br/>Axios + JWT Bearer"]
     end
 
-    subgraph APILayer[Capa API]
-        FastAPI[API REST<br/>FastAPI + Uvicorn<br/>Puerto 8000<br/>Python 3.11]
+    subgraph SecretsLayer["Gestión de Secretos"]
+        DopplerBackend["Doppler Init Backend<br/>Descarga secretos"]
+        DopplerFrontend["Doppler Init Frontend<br/>Descarga secretos"]
     end
 
-    subgraph WorkerLayer[Capa de Procesamiento]
-        CeleryWorker[Celery Worker<br/>Procesa jobs asíncronos<br/>Python 3.11]
-        Flower[Flower UI<br/>Monitoreo de tareas<br/>Puerto 5555]
+    subgraph APILayer["Capa API"]
+        FastAPI["API REST<br/>FastAPI + Uvicorn<br/>Puerto 8000<br/>Python 3.11"]
     end
 
-    subgraph DataLayer[Capa de Datos]
-        PostgreSQL[Base de Datos<br/>PostgreSQL 15<br/>Puerto 5432<br/>Documentos, Jobs, Audit]
-        Redis[Cache y Broker<br/>Redis 7<br/>Puerto 6379<br/>Rate limiting, Celery queue]
+    subgraph WorkerLayer["Capa de Procesamiento"]
+        CeleryWorker["Celery Worker<br/>Procesa jobs asíncronos<br/>Python 3.11"]
+        Flower["Flower UI<br/>Monitoreo de tareas<br/>Puerto 5555"]
     end
 
-    subgraph ExternalLayer[Servicios Externos]
-        WebhookEndpoint[Webhook Endpoint<br/>webhook.site<br/>HTTPS]
+    subgraph DataLayer["Capa de Datos"]
+        PostgreSQL["Base de Datos<br/>PostgreSQL 15<br/>Puerto 5432<br/>Documentos, Jobs, Users, Audit"]
+        Redis["Cache y Broker<br/>Redis 7<br/>Puerto 6379<br/>Rate limiting, Celery queue"]
     end
 
-    WebApp -->|HTTP/REST| FastAPI
-    APIClient -.->|Requests| FastAPI
+    subgraph ExternalLayer["Servicios Externos"]
+        GoogleAuth["Google OAuth2<br/>Autenticación"]
+        WebhookEndpoint["Webhook Endpoint<br/>webhook.site<br/>HTTPS"]
+    end
 
-    FastAPI -->|SQLAlchemy ORM| PostgreSQL
-    FastAPI -->|Consultas/Cache| Redis
-    FastAPI -->|Publica tareas| Redis
+    DopplerBackend -->|"Secretos"| FastAPI
+    DopplerBackend -->|"Secretos"| CeleryWorker
+    DopplerFrontend -->|"Secretos"| WebApp
 
-    CeleryWorker -->|Consume tareas| Redis
-    CeleryWorker -->|Lee/Escribe| PostgreSQL
-    CeleryWorker -->|HTTP POST| WebhookEndpoint
+    WebApp -->|"HTTP/REST + JWT"| FastAPI
+    APIClient -.->|"Requests"| FastAPI
 
-    Flower -->|Monitorea| CeleryWorker
-    Flower -->|Lee estado| Redis
+    FastAPI -->|"SQLAlchemy ORM"| PostgreSQL
+    FastAPI -->|"Consultas/Cache"| Redis
+    FastAPI -->|"Publica tareas"| Redis
+    FastAPI -->|"OAuth2 flow"| GoogleAuth
 
-    style FastAPI fill:#1168bd,stroke:#0b4884,color:#ffffff
-    style CeleryWorker fill:#1168bd,stroke:#0b4884,color:#ffffff
-    style PostgreSQL fill:#336791,stroke:#2d5a7b,color:#ffffff
-    style Redis fill:#dc382d,stroke:#a82923,color:#ffffff
-    style WebApp fill:#61dafb,stroke:#4ab8d4,color:#000000
+    CeleryWorker -->|"Consume tareas"| Redis
+    CeleryWorker -->|"Lee/Escribe"| PostgreSQL
+    CeleryWorker -->|"HTTP POST"| WebhookEndpoint
+
+    Flower -->|"Monitorea"| CeleryWorker
+    Flower -->|"Lee estado"| Redis
 ```
 
 **Tecnologías por Contenedor:**
 
 | Contenedor | Tecnología | Propósito |
 |------------|-----------|-----------|
-| API REST | FastAPI + Uvicorn | Endpoints HTTP, validación, autenticación |
-| Celery Worker | Celery + Python | Procesamiento asíncrono de lotes |
-| PostgreSQL | PostgreSQL 15 | Persistencia de documentos y jobs |
-| Redis | Redis 7 | Cache, rate limiting y cola de mensajes |
+| Frontend | React 18 + Tailwind CSS + Vite | SPA con dark mode, RBAC visual |
+| API REST | FastAPI + Uvicorn | Endpoints HTTP, validación, autenticación JWT |
+| Celery Worker | Celery + Python | Procesamiento asíncrono de lotes con auto-evaluación |
+| PostgreSQL | PostgreSQL 15 | Persistencia de documentos, jobs, usuarios y auditoría |
+| Redis | Redis 7 | Cache, rate limiting (sliding window) y cola de mensajes |
 | Flower | Flower | Monitoreo visual de workers |
+| Doppler Init | Alpine + curl | Descarga de secretos al arrancar los contenedores |
 
 ---
 
@@ -112,43 +124,52 @@ Este diagrama muestra la arquitectura interna del contenedor API REST usando Cle
 
 ```mermaid
 graph TB
-    subgraph PresentationLayer[Presentation Layer]
-        Routes[API Routes<br/>documentos.py, jobs.py]
-        Middleware[Middleware<br/>Auth, Rate Limiter, Error Handler]
-        Dependencies[Dependencies<br/>Dependency Injection]
+    subgraph PresentationLayer["Presentation Layer"]
+        Routes["API Routes<br/>documents, batch, jobs, auth, admin"]
+        Middleware["Middleware<br/>JWT Auth, RBAC, Rate Limiter, Error Handler"]
+        Dependencies["Dependencies<br/>Dependency Injection"]
     end
 
-    subgraph ApplicationLayer[Application Layer]
-        CreateUC[Create Documento<br/>Use Case]
-        SearchUC[Search Documentos<br/>Use Case]
-        UpdateUC[Update Estado<br/>Use Case]
-        BatchUC[Process Batch<br/>Use Case]
-        GetJobUC[Get Job Status<br/>Use Case]
-        DTOs[DTOs<br/>Request/Response objects]
+    subgraph ApplicationLayer["Application Layer"]
+        CreateUC["CreateDocument"]
+        SearchUC["SearchDocuments"]
+        UpdateUC["UpdateStatus"]
+        UpdateDocUC["UpdateDocument"]
+        BatchUC["ProcessBatch"]
+        GetJobUC["GetJobStatus"]
+        ListJobsUC["ListJobs"]
+        AuthUC["AuthService"]
+        DTOs["DTOs<br/>Request/Response objects"]
     end
 
-    subgraph DomainLayer[Domain Layer]
-        DocumentoEntity[Documento Entity]
-        JobEntity[Job Entity]
-        EstadoVO[Estado Value Object]
-        StateMachine[State Machine<br/>Validación de transiciones]
-        Exceptions[Domain Exceptions]
+    subgraph DomainLayer["Domain Layer"]
+        DocumentoEntity["Document Entity"]
+        UserEntity["User Entity"]
+        JobEntity["Job Entity"]
+        StatusVO["DocumentStatus / JobStatus"]
+        UserRoleVO["UserRole / UserStatus"]
+        StateMachine["State Machine<br/>Validación de transiciones"]
+        Exceptions["Domain Exceptions"]
     end
 
-    subgraph InfrastructureLayer[Infrastructure Layer]
-        DocumentoRepo[Documento Repository]
-        JobRepo[Job Repository]
-        DatabaseConn[Database Connection<br/>SQLAlchemy Session]
-        RedisClient[Redis Client<br/>Cache + Rate Limit]
-        CeleryTasks[Celery Tasks<br/>Procesar batch]
-        WebhookClient[Webhook Client<br/>HTTP notifications]
+    subgraph InfrastructureLayer["Infrastructure Layer"]
+        DocumentoRepo["Document Repository"]
+        JobRepo["Job Repository"]
+        UserRepo["User Repository"]
+        AuditRepo["Audit Repository"]
+        DatabaseConn["Database Connection<br/>SQLAlchemy Session"]
+        RedisClient["Redis Client<br/>Cache + Rate Limit"]
+        NotifDispatcher["Notification Dispatcher"]
+        NotifChannels["Notification Channels<br/>HTTP Webhook"]
+        CeleryTasks["Celery Tasks<br/>Procesar batch"]
     end
 
-    subgraph ExternalSystems[Sistemas Externos]
-        DB[(PostgreSQL)]
-        Cache[(Redis)]
-        QueueBroker[Redis Queue]
-        WebhookAPI[Webhook API]
+    subgraph ExternalSystems["Sistemas Externos"]
+        DB[("PostgreSQL")]
+        Cache[("Redis")]
+        QueueBroker["Redis Queue"]
+        WebhookAPI["Webhook API"]
+        GoogleAPI["Google OAuth2"]
     end
 
     Routes --> Middleware
@@ -156,71 +177,81 @@ graph TB
     Dependencies --> CreateUC
     Dependencies --> SearchUC
     Dependencies --> UpdateUC
+    Dependencies --> UpdateDocUC
     Dependencies --> BatchUC
     Dependencies --> GetJobUC
+    Dependencies --> ListJobsUC
+    Dependencies --> AuthUC
 
     CreateUC --> DocumentoEntity
     SearchUC --> DocumentoEntity
     UpdateUC --> StateMachine
+    UpdateDocUC --> DocumentoEntity
     BatchUC --> JobEntity
     GetJobUC --> JobEntity
+    AuthUC --> UserEntity
 
     CreateUC --> DTOs
     SearchUC --> DTOs
 
-    DocumentoEntity --> EstadoVO
+    DocumentoEntity --> StatusVO
+    UserEntity --> UserRoleVO
     UpdateUC --> Exceptions
-    StateMachine --> EstadoVO
+    StateMachine --> StatusVO
 
     CreateUC --> DocumentoRepo
     SearchUC --> DocumentoRepo
     UpdateUC --> DocumentoRepo
+    UpdateDocUC --> DocumentoRepo
     BatchUC --> JobRepo
     BatchUC --> CeleryTasks
     GetJobUC --> JobRepo
+    ListJobsUC --> JobRepo
+    AuthUC --> UserRepo
 
     DocumentoRepo --> DatabaseConn
     JobRepo --> DatabaseConn
+    UserRepo --> DatabaseConn
+    AuditRepo --> DatabaseConn
     Middleware --> RedisClient
+    CeleryTasks --> NotifDispatcher
+    NotifDispatcher --> NotifChannels
 
     DatabaseConn --> DB
     RedisClient --> Cache
     CeleryTasks --> QueueBroker
-    CeleryTasks --> WebhookClient
-    WebhookClient --> WebhookAPI
-
-    style PresentationLayer fill:#e1f5ff
-    style ApplicationLayer fill:#fff4e1
-    style DomainLayer fill:#ffe1e1
-    style InfrastructureLayer fill:#e1ffe1
+    NotifChannels --> WebhookAPI
+    AuthUC --> GoogleAPI
 ```
 
 **Responsabilidades por Capa:**
 
 #### 1. Presentation Layer (API)
-- **Routes**: Define endpoints HTTP y mapea requests/responses
-- **Middleware**: Autenticación, rate limiting, manejo de errores
-- **Dependencies**: Inyección de dependencias (repositories, use cases)
+- **Routes**: Define endpoints HTTP para documentos, batch, jobs, autenticación y administración
+- **Middleware**: Autenticación JWT, RBAC (role-based access), rate limiting, manejo de errores
+- **Dependencies**: Inyección de dependencias mediante FastAPI `Depends`
 
 #### 2. Application Layer (Casos de Uso)
-- **Create Documento**: Valida datos de negocio y crea documento
-- **Search Documentos**: Aplica filtros y paginación
-- **Update Estado**: Valida transiciones de estado permitidas
-- **Process Batch**: Dispara procesamiento asíncrono
-- **Get Job Status**: Consulta estado de jobs
+- **CreateDocument**: Valida datos de negocio y crea documento con audit log
+- **SearchDocuments**: Aplica filtros y paginación
+- **UpdateStatus**: Valida transiciones de estado con la state machine
+- **UpdateDocument**: Actualiza campos (solo en estado DRAFT) con audit log
+- **ProcessBatch**: Dispara procesamiento asíncrono vía Celery
+- **GetJobStatus / ListJobs**: Consulta estado de jobs
+- **AuthService**: OAuth2 con Google, emisión/validación de JWT, gestión de usuarios
 
 #### 3. Domain Layer (Lógica de Negocio)
-- **Entities**: Documento, Job (objetos de dominio)
-- **Value Objects**: EstadoDocumento (inmutable, con reglas)
-- **State Machine**: Valida transiciones borrador → pendiente → aprobado/rechazado
+- **Entities**: Document, Job, User (objetos de dominio)
+- **Value Objects**: DocumentStatus, JobStatus, UserRole, UserStatus
+- **State Machine**: Valida transiciones DRAFT -> PENDING -> APPROVED/REJECTED, REJECTED -> DRAFT
 - **Exceptions**: Errores de dominio personalizados
 
 #### 4. Infrastructure Layer (Detalles Técnicos)
-- **Repositories**: Abstracción de acceso a datos
+- **Repositories**: Document, Job, User, Audit — abstracción de acceso a datos
 - **Database Connection**: Gestión de sesiones SQLAlchemy
-- **Redis Client**: Cache y rate limiting
-- **Celery Tasks**: Workers para procesamiento asíncrono
-- **Webhook Client**: Cliente HTTP para notificaciones
+- **Redis Client**: Cache de API keys y rate limiting (sliding window)
+- **Notification Dispatcher**: Envía eventos a canales registrados (Strategy Pattern)
+- **Celery Tasks**: Workers para procesamiento asíncrono con auto-evaluación
 
 ---
 
@@ -230,55 +261,50 @@ graph TB
 
 ```mermaid
 graph TD
-    subgraph External[Mundo Exterior]
-        UI[UI/API Clients]
-        DB[PostgreSQL]
-        Cache[Redis]
-        Queue[Message Queue]
+    subgraph External["Mundo Exterior"]
+        UI["UI/API Clients"]
+        DB["PostgreSQL"]
+        Cache["Redis"]
+        Queue["Message Queue"]
+        Google["Google OAuth2"]
     end
 
-    subgraph Presentation[Presentation Layer<br/>FastAPI Routes, Middleware]
+    subgraph Presentation["Presentation Layer<br/>FastAPI Routes, JWT Middleware, RBAC"]
     end
 
-    subgraph Application[Application Layer<br/>Use Cases, Business Logic]
+    subgraph Application["Application Layer<br/>Use Cases, AuthService, DTOs"]
     end
 
-    subgraph Domain[Domain Layer<br/>Entities, Value Objects, Rules]
+    subgraph Domain["Domain Layer<br/>Document, User, Job, State Machine"]
     end
 
-    subgraph Infrastructure[Infrastructure Layer<br/>Repositories, External Services]
+    subgraph Infrastructure["Infrastructure Layer<br/>Repositories, Notifications, Redis, Celery"]
     end
 
-    UI -->|HTTP Requests| Presentation
-    Presentation -->|Calls| Application
-    Application -->|Uses| Domain
-    Application -->|Depends on| Infrastructure
-    Infrastructure -->|Implements| Domain
-    Infrastructure -->|Accesses| DB
-    Infrastructure -->|Accesses| Cache
-    Infrastructure -->|Accesses| Queue
-
-    style Domain fill:#ff6b6b,stroke:#c92a2a,color:#ffffff
-    style Application fill:#ffd43b,stroke:#fab005,color:#000000
-    style Presentation fill:#51cf66,stroke:#37b24d,color:#ffffff
-    style Infrastructure fill:#339af0,stroke:#1971c2,color:#ffffff
+    UI -->|"HTTP + JWT"| Presentation
+    Presentation -->|"Calls"| Application
+    Application -->|"Uses"| Domain
+    Application -->|"Depends on"| Infrastructure
+    Infrastructure -->|"Implements"| Domain
+    Infrastructure -->|"Accesses"| DB
+    Infrastructure -->|"Accesses"| Cache
+    Infrastructure -->|"Accesses"| Queue
+    Application -->|"OAuth2"| Google
 ```
 
 ### Flujo de Dependencias
 
 ```mermaid
 graph LR
-    Domain[Domain Layer<br/>No depende de nadie]
-    Application[Application Layer<br/>Depende de Domain]
-    Infrastructure[Infrastructure Layer<br/>Depende de Domain]
-    Presentation[Presentation Layer<br/>Depende de Application]
+    Domain["Domain Layer<br/>No depende de nadie"]
+    Application["Application Layer<br/>Depende de Domain"]
+    Infrastructure["Infrastructure Layer<br/>Depende de Domain"]
+    Presentation["Presentation Layer<br/>Depende de Application"]
 
     Presentation --> Application
     Application --> Domain
     Infrastructure --> Domain
-    Presentation -.->|Inyecta| Infrastructure
-
-    style Domain fill:#ff6b6b,stroke:#c92a2a,color:#ffffff
+    Presentation -.->|"Inyecta"| Infrastructure
 ```
 
 **Principio de Inversión de Dependencias:**
@@ -290,95 +316,152 @@ graph LR
 
 ## Diagramas de Flujo
 
-### Flujo 1: Crear Documento
+### Flujo 1: Autenticación con Google OAuth2
 
 ```mermaid
 sequenceDiagram
     actor User as Usuario
+    participant Frontend as React App
     participant API as FastAPI
-    participant Auth as Auth Middleware
-    participant RL as Rate Limiter
-    participant UC as CreateDocumento UseCase
-    participant Domain as Documento Entity
-    participant Repo as Repository
+    participant Google as Google OAuth2
     participant DB as PostgreSQL
+    participant JWT as JWT Service
 
-    User->>API: POST /documentos<br/>{tipo, monto, metadata}
-    API->>Auth: Verificar API Key
-    Auth-->>API: ✓ Autenticado
+    User->>Frontend: Click "Continuar con Google"
+    Frontend->>API: GET /auth/google
+    API->>Google: Redirect a consent screen
+    Google-->>User: Pantalla de consentimiento
 
-    API->>RL: Verificar rate limit
-    RL->>RL: Incrementar contador en Redis
-    alt Límite excedido
-        RL-->>API: 429 Too Many Requests
-        API-->>User: Error: Rate limit exceeded
-    else Dentro del límite
-        RL-->>API: ✓ Permitido
+    User->>Google: Autoriza acceso
+    Google->>API: GET /auth/google/callback?code=xxx
 
-        API->>UC: execute(CreateDocumentoRequest)
-        UC->>UC: Validar monto > 0
-        UC->>UC: Sanitizar metadata
+    API->>Google: Exchange code por access_token
+    Google-->>API: access_token
 
-        UC->>Domain: new Documento(<br/>estado=BORRADOR)
-        Domain-->>UC: Documento entity
+    API->>Google: GET userinfo (email, name, picture)
+    Google-->>API: Datos del usuario
 
-        UC->>Repo: create(documento)
-        Repo->>DB: INSERT INTO documentos
-        DB-->>Repo: documento_id
-        Repo-->>UC: Documento persistido
+    API->>DB: find_or_create_user(google_id, email, name)
+    DB-->>API: User entity
 
-        UC-->>API: DocumentoResponse
-        API-->>User: 201 Created<br/>{id, tipo, monto, estado}
+    alt Usuario nuevo
+        Note over DB: status=PENDING, role=null
+    else Usuario existente
+        Note over DB: Retorna usuario existente
+    end
+
+    API->>JWT: create_jwt(user)
+    JWT-->>API: token firmado (HS256)
+
+    API->>Frontend: Redirect /auth/callback?token=xxx&status=pending|active
+
+    alt status = pending
+        Frontend->>Frontend: Redirige a /pending
+    else status = active
+        Frontend->>Frontend: Guarda token en localStorage
+        Frontend->>Frontend: Redirige a Dashboard
     end
 ```
 
 ---
 
-### Flujo 2: Actualizar Estado de Documento
+### Flujo 2: Crear Documento
 
 ```mermaid
 sequenceDiagram
     actor User as Usuario
     participant API as FastAPI
-    participant UC as UpdateEstado UseCase
+    participant JWT as JWT Middleware
+    participant RBAC as RBAC Check
+    participant RL as Rate Limiter
+    participant UC as CreateDocument UseCase
+    participant Domain as Document Entity
+    participant Repo as Repository
+    participant DB as PostgreSQL
+
+    User->>API: POST /api/v1/documents<br/>{tipo, monto, metadata}
+    API->>JWT: Verificar Bearer token
+    JWT->>JWT: Decodificar y validar JWT
+    JWT->>DB: Buscar usuario por UUID
+    DB-->>JWT: User entity
+
+    JWT->>RBAC: require_loader()
+    alt Usuario no tiene rol loader/admin
+        RBAC-->>API: 403 Forbidden
+        API-->>User: Error: Insufficient permissions
+    else Rol válido
+        RBAC-->>API: Usuario autorizado
+
+        JWT->>RL: check_rate_limit(user:uuid)
+        alt Límite excedido
+            RL-->>API: 429 Too Many Requests
+            API-->>User: Error: Rate limit exceeded
+        else Dentro del límite
+            RL-->>API: Permitido
+
+            API->>UC: execute(CreateDocumentRequest)
+            UC->>UC: Validar monto > 0
+            UC->>UC: Sanitizar metadata
+
+            UC->>Domain: new Document(status=DRAFT)
+            Domain-->>UC: Document entity
+
+            UC->>Repo: create(documento)
+            Repo->>DB: INSERT INTO finance.documents
+            DB-->>Repo: documento_id
+            Repo-->>UC: Documento persistido
+
+            UC-->>API: DocumentResponse
+            API-->>User: 201 Created
+        end
+    end
+```
+
+---
+
+### Flujo 3: Actualizar Estado de Documento
+
+```mermaid
+sequenceDiagram
+    actor User as Usuario
+    participant API as FastAPI
+    participant UC as UpdateStatus UseCase
     participant Repo as Repository
     participant DB as PostgreSQL
     participant SM as State Machine
     participant Audit as Audit Log
 
-    User->>API: PATCH /documentos/{id}/estado<br/>{nuevo_estado: "pendiente"}
+    User->>API: PATCH /api/v1/documents/{id}/status<br/>{new_status: "pending"}
 
-    API->>UC: execute(documento_id, nuevo_estado)
-    UC->>Repo: get_by_id(documento_id)
-    Repo->>DB: SELECT * FROM documentos WHERE id=?
+    API->>UC: execute(document_id, new_status)
+    UC->>Repo: get_by_id(document_id)
+    Repo->>DB: SELECT * FROM finance.documents WHERE id=?
     DB-->>Repo: documento
-    Repo-->>UC: Documento entity
+    Repo-->>UC: Document entity
 
-    UC->>SM: validate_transition(<br/>estado_actual=BORRADOR,<br/>nuevo_estado=PENDIENTE)
+    UC->>SM: validate_transition(DRAFT, PENDING)
 
     alt Transición válida
-        SM-->>UC: ✓ Transición permitida
+        SM-->>UC: Transición permitida
 
-        UC->>Repo: update_estado(documento_id, PENDIENTE)
-        Repo->>DB: UPDATE documentos<br/>SET estado='pendiente'
-        DB-->>Repo: ✓ Updated
+        UC->>Repo: update_status(document_id, PENDING)
+        Repo->>DB: UPDATE finance.documents SET status='pending'
 
-        UC->>Audit: log_state_change(<br/>BORRADOR → PENDIENTE)
-        Audit->>DB: INSERT INTO audit_logs
+        UC->>Audit: log(table=documents, action=state_change, old=draft, new=pending)
+        Audit->>DB: INSERT INTO finance.audit_logs
 
-        Repo-->>UC: Documento actualizado
-        UC-->>API: DocumentoResponse
+        UC-->>API: DocumentResponse
         API-->>User: 200 OK
     else Transición inválida
-        SM-->>UC: ✗ InvalidStateTransitionException
+        SM-->>UC: InvalidStateTransitionException
         UC-->>API: DomainException
-        API-->>User: 400 Bad Request<br/>{error: "No se puede transicionar<br/>de borrador a aprobado"}
+        API-->>User: 400 Bad Request
     end
 ```
 
 ---
 
-### Flujo 3: Procesamiento Batch Asíncrono
+### Flujo 4: Procesamiento Batch Asíncrono
 
 ```mermaid
 sequenceDiagram
@@ -389,134 +472,82 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant Redis as Redis Queue
     participant Worker as Celery Worker
-    participant Webhook as Webhook Service
+    participant Domain as Document Entity
+    participant Dispatcher as Notification Dispatcher
+    participant Webhook as HTTP Channel
 
-    User->>API: POST /documentos/batch/procesar<br/>{documento_ids: [1,2,3,4,5]}
+    User->>API: POST /api/v1/documents/batch/process<br/>{document_ids: [1,2,3,4,5]}
 
     API->>UC: execute([1,2,3,4,5])
 
-    UC->>JobRepo: create_job(<br/>documento_ids, status=PENDING)
-    JobRepo->>DB: INSERT INTO jobs
+    UC->>JobRepo: create_job(document_ids, status=PENDING)
+    JobRepo->>DB: INSERT INTO finance.jobs
     DB-->>JobRepo: job_id (UUID)
-    JobRepo-->>UC: Job entity
 
-    UC->>Redis: Publish task<br/>process_documentos_batch.delay(<br/>job_id, documento_ids)
-    Redis-->>UC: Task queued
+    UC->>Redis: process_documents_batch.delay(job_id, document_ids)
 
     UC-->>API: job_id
-    API-->>User: 202 Accepted<br/>{job_id: "uuid-123",<br/>status: "pending"}
-
-    Note over User,API: Usuario puede consultar estado<br/>mientras se procesa
+    API-->>User: 202 Accepted<br/>{job_id, status: "pending"}
 
     Worker->>Redis: Consume task
-    Redis-->>Worker: Task data
-
     Worker->>JobRepo: update_status(job_id, PROCESSING)
-    JobRepo->>DB: UPDATE jobs SET status='processing'
 
-    loop Por cada documento_id
-        Worker->>Worker: Procesar documento<br/>(sleep 5-10s)
+    loop Por cada documento
+        Worker->>DB: SELECT document
+        alt Estado DRAFT
+            Worker->>Domain: evaluate_for_auto_processing()
+            alt Monto > 10M o metadata incompleta
+                Domain-->>Worker: REJECTED + razón
+            else Reglas OK
+                Domain-->>Worker: PENDING
+            end
+            Worker->>DB: UPDATE status
+        else Estado REJECTED
+            Worker->>DB: UPDATE status = DRAFT
+        else Estado APPROVED o PENDING
+            Worker->>Worker: Skip (estado final o en revisión)
+        end
     end
 
-    Worker->>JobRepo: complete_job(<br/>job_id, COMPLETED, result)
-    JobRepo->>DB: UPDATE jobs<br/>SET status='completed',<br/>result={...}
+    Worker->>JobRepo: complete_job(job_id, COMPLETED, result)
 
-    Worker->>Webhook: POST https://webhook.site<br/>{job_id, status, result}
-    Webhook-->>Worker: 200 OK
-
-    Note over User: Usuario consulta estado
-    User->>API: GET /jobs/{job_id}
-    API->>JobRepo: get_by_id(job_id)
-    JobRepo->>DB: SELECT * FROM jobs
-    DB-->>JobRepo: job data
-    JobRepo-->>API: Job entity
-    API-->>User: 200 OK<br/>{job_id, status: "completed",<br/>result: {...}}
+    Worker->>Dispatcher: dispatch(webhook_payload)
+    Dispatcher->>Webhook: send(payload)
+    Webhook-->>Dispatcher: 200 OK
 ```
 
 ---
 
-### Flujo 4: Búsqueda con Filtros y Paginación
+### Flujo 5: Búsqueda con Filtros y Paginación
 
 ```mermaid
 sequenceDiagram
     actor User as Usuario
     participant API as FastAPI
-    participant UC as SearchDocumentos UseCase
+    participant UC as SearchDocuments UseCase
     participant Repo as Repository
-    participant Cache as Redis Cache
     participant DB as PostgreSQL
 
-    User->>API: GET /documentos?<br/>tipo=factura&<br/>estado=pendiente&<br/>monto_min=1000&<br/>page=1&page_size=10
+    User->>API: GET /api/v1/documents?<br/>type=invoice&<br/>status=pending&<br/>amount_min=1000&<br/>page=1&page_size=10
 
-    API->>UC: execute(SearchDocumentosRequest)
+    API->>UC: execute(SearchDocumentsRequest)
 
     UC->>UC: Validar paginación<br/>(page >= 1, page_size <= 100)
 
-    UC->>Cache: get(cache_key)
+    UC->>Repo: search_with_filters(type, status, amount_min, skip, limit)
 
-    alt Cache hit
-        Cache-->>UC: Cached result
-        UC-->>API: PaginatedResponse<br/>(from cache)
-    else Cache miss
-        Cache-->>UC: null
+    Repo->>DB: SELECT * FROM finance.documents<br/>WHERE type='invoice'<br/>AND status='pending'<br/>AND amount >= 1000<br/>LIMIT 10 OFFSET 0
+    DB-->>Repo: items
 
-        UC->>Repo: search_with_filters(<br/>tipo=factura,<br/>estado=pendiente,<br/>monto_min=1000,<br/>skip=0, limit=10)
+    Repo->>DB: SELECT COUNT(*) FROM finance.documents WHERE ...
+    DB-->>Repo: total=47
 
-        Repo->>DB: SELECT * FROM documentos<br/>WHERE tipo='factura'<br/>AND estado='pendiente'<br/>AND monto >= 1000<br/>LIMIT 10 OFFSET 0
-        DB-->>Repo: [documentos]
+    Repo-->>UC: items, total
 
-        Repo->>DB: SELECT COUNT(*)<br/>FROM documentos<br/>WHERE ...
-        DB-->>Repo: total=47
+    UC->>UC: Calcular total_pages = ceil(47 / 10) = 5
 
-        Repo-->>UC: items, total
-
-        UC->>UC: Calcular total_pages<br/>= ceil(47 / 10) = 5
-
-        UC->>Cache: set(cache_key, result, ttl=60s)
-
-        UC-->>API: PaginatedResponse{<br/>items: [...],<br/>total: 47,<br/>page: 1,<br/>page_size: 10,<br/>total_pages: 5}
-    end
-
-    API-->>User: 200 OK + JSON
-```
-
----
-
-### Flujo 5: Rate Limiting
-
-```mermaid
-flowchart TD
-    Start([Request entrante]) --> CheckKey{¿Tiene API Key?}
-
-    CheckKey -->|No| Return403[Retornar 403 Forbidden]
-    CheckKey -->|Sí| ValidateKey{¿API Key válida?}
-
-    ValidateKey -->|No| Return403
-    ValidateKey -->|Sí| GetIP[Obtener IP del cliente]
-
-    GetIP --> RedisKey[Generar key:<br/>rate_limit:IP]
-    RedisKey --> Increment[INCR en Redis]
-
-    Increment --> CheckFirst{¿Contador = 1?}
-    CheckFirst -->|Sí| SetExpire[EXPIRE key 60s]
-    CheckFirst -->|No| CheckLimit
-
-    SetExpire --> CheckLimit{¿Contador > 100?}
-
-    CheckLimit -->|Sí| Return429[Retornar 429<br/>Too Many Requests]
-    CheckLimit -->|No| AllowRequest[Permitir request]
-
-    AllowRequest --> ProcessRequest[Procesar endpoint]
-    ProcessRequest --> End([Response exitosa])
-
-    Return403 --> EndError([Error response])
-    Return429 --> EndError
-
-    style Start fill:#90ee90
-    style End fill:#90ee90
-    style EndError fill:#ff6b6b
-    style Return429 fill:#ffd43b
-    style Return403 fill:#ff6b6b
+    UC-->>API: PaginatedDocumentsResponse
+    API-->>User: 200 OK
 ```
 
 ---
@@ -527,34 +558,40 @@ flowchart TD
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Borrador: Crear documento
+    [*] --> DRAFT: Crear documento
 
-    Borrador --> Pendiente: enviar()
+    DRAFT --> PENDING: Batch worker (auto-evaluación OK)
+    DRAFT --> REJECTED: Batch worker (monto excede límite o metadata incompleta)
 
-    Pendiente --> Aprobado: aprobar()
-    Pendiente --> Rechazado: rechazar()
+    PENDING --> APPROVED: Aprobador autoriza
+    PENDING --> REJECTED: Aprobador rechaza
 
-    Aprobado --> [*]: Estado final
-    Rechazado --> [*]: Estado final
+    REJECTED --> DRAFT: Re-abrir para corrección
 
-    note right of Borrador
-        Estado inicial
-        Se puede editar libremente
+    APPROVED --> [*]: Estado final (inmutable)
+
+    note right of DRAFT
+        Estado inicial.
+        Editable libremente.
+        Puede ser procesado por batch.
     end note
 
-    note right of Pendiente
-        En revisión
-        No se puede editar
+    note right of PENDING
+        En revisión humana.
+        No se puede editar.
+        Espera aprobación o rechazo.
     end note
 
-    note right of Aprobado
-        Documento aprobado
-        Estado inmutable
+    note right of APPROVED
+        Documento aprobado.
+        Único estado verdaderamente final.
+        Inmutable.
     end note
 
-    note right of Rechazado
-        Documento rechazado
-        Estado inmutable
+    note right of REJECTED
+        Documento rechazado.
+        Puede re-abrirse a DRAFT
+        para corrección.
     end note
 ```
 
@@ -563,30 +600,22 @@ stateDiagram-v2
 ```mermaid
 graph LR
     subgraph Transiciones_Permitidas
-        B[BORRADOR] -->|✓ enviar| P[PENDIENTE]
-        P -->|✓ aprobar| A[APROBADO]
-        P -->|✓ rechazar| R[RECHAZADO]
+        B["DRAFT"] -->|"auto-eval OK"| P["PENDING"]
+        B -->|"auto-eval falla"| R["REJECTED"]
+        P -->|"aprobar"| A["APPROVED"]
+        P -->|"rechazar"| R2["REJECTED"]
+        R3["REJECTED"] -->|"re-abrir"| B2["DRAFT"]
     end
-
-    subgraph Transiciones_Invalidas
-        B2[BORRADOR] -.->|✗ no permitido| A2[APROBADO]
-        B2 -.->|✗ no permitido| R2[RECHAZADO]
-        A3[APROBADO] -.->|✗ inmutable| P2[PENDIENTE]
-        R3[RECHAZADO] -.->|✗ inmutable| P3[PENDIENTE]
-    end
-
-    style B fill:#90ee90
-    style P fill:#ffd43b
-    style A fill:#51cf66
-    style R fill:#ff6b6b
-    style B2 fill:#90ee90
-    style A2 fill:#51cf66
-    style R2 fill:#ff6b6b
-    style A3 fill:#51cf66
-    style P2 fill:#ffd43b
-    style R3 fill:#ff6b6b
-    style P3 fill:#ffd43b
 ```
+
+| Desde | Hacia | Disparador |
+|-------|-------|------------|
+| DRAFT | PENDING | Batch worker: documento cumple reglas de auto-procesamiento |
+| DRAFT | REJECTED | Batch worker: monto > 10M o metadata incompleta |
+| PENDING | APPROVED | Aprobador manual (rol approver/admin) |
+| PENDING | REJECTED | Aprobador manual (rol approver/admin) |
+| REJECTED | DRAFT | Re-apertura para corrección y re-procesamiento |
+| APPROVED | --- | Estado final, no hay transiciones salientes |
 
 ---
 
@@ -596,24 +625,38 @@ graph LR
 
 ```mermaid
 erDiagram
-    DOCUMENTOS ||--o{ AUDIT_LOGS : "genera"
-    JOBS }o--o{ DOCUMENTOS : "procesa"
+    USERS ||--o{ AUDIT_LOGS : "genera"
+    DOCUMENTS ||--o{ AUDIT_LOGS : "genera"
+    JOBS ||--o{ AUDIT_LOGS : "genera"
+    JOBS }o--o{ DOCUMENTS : "procesa"
 
-    DOCUMENTOS {
+    USERS {
+        uuid id PK
+        varchar google_id UK
+        varchar email UK
+        varchar name
+        varchar picture
+        varchar role "admin | loader | approver | null"
+        varchar status "pending | active | disabled"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    DOCUMENTS {
         serial id PK
-        varchar tipo
-        decimal monto
-        varchar estado
-        timestamp fecha_creacion
-        timestamp fecha_actualizacion
+        varchar type "invoice | receipt | voucher"
+        decimal amount "CHECK > 0"
+        varchar status "draft | pending | approved | rejected"
+        timestamp created_at
+        timestamp updated_at
         jsonb metadata
         varchar created_by
     }
 
     JOBS {
         uuid id PK
-        integer_array documento_ids
-        varchar status
+        integer_array document_ids
+        varchar status "pending | processing | completed | failed"
         timestamp created_at
         timestamp completed_at
         text error_message
@@ -622,47 +665,21 @@ erDiagram
 
     AUDIT_LOGS {
         serial id PK
-        integer documento_id FK
-        varchar action
-        varchar old_state
-        varchar new_state
+        varchar table_name "documents | jobs | users"
+        varchar record_id "int o UUID como string"
+        varchar action "created | state_change | field_updated"
+        text old_value
+        text new_value
         timestamp timestamp
         varchar user_id
     }
 ```
 
-### Índices de Base de Datos
-
-```mermaid
-graph TB
-    subgraph DocumentosTable[Tabla DOCUMENTOS]
-        PK[id - PRIMARY KEY]
-        IdxEstado[idx_documentos_estado<br/>B-tree on estado]
-        IdxTipo[idx_documentos_tipo<br/>B-tree on tipo]
-        IdxFecha[idx_documentos_fecha<br/>B-tree on fecha_creacion]
-        IdxMetadata[idx_documentos_metadata<br/>GIN on metadata]
-    end
-
-    subgraph JobsTable[Tabla JOBS]
-        PKJob[id - PRIMARY KEY]
-        IdxStatus[idx_jobs_status<br/>B-tree on status]
-        IdxCreated[idx_jobs_created_at<br/>B-tree on created_at]
-    end
-
-    subgraph Performance[Optimizaciones de Performance]
-        Q1[Búsqueda por estado<br/>usa idx_documentos_estado]
-        Q2[Filtro por tipo<br/>usa idx_documentos_tipo]
-        Q3[Rango de fechas<br/>usa idx_documentos_fecha]
-        Q4[Búsqueda en metadata<br/>usa idx_documentos_metadata]
-    end
-
-    IdxEstado -.->|Optimiza| Q1
-    IdxTipo -.->|Optimiza| Q2
-    IdxFecha -.->|Optimiza| Q3
-    IdxMetadata -.->|Optimiza| Q4
-
-    style Performance fill:#e1f5ff
-```
+**Notas del modelo:**
+- Todas las tablas viven en el schema `finance`
+- `AUDIT_LOGS` es genérico: `(table_name, record_id)` permite auditar cualquier tabla sin FK directo
+- `USERS.role` es null mientras el usuario está pendiente de aprobación
+- Existen triggers de PostgreSQL que generan audit logs automáticamente ante cambios directos en BD
 
 ---
 
@@ -672,84 +689,103 @@ graph TB
 
 ```mermaid
 flowchart TB
-    Request([HTTP Request]) --> Layer1
+    Request(["HTTP Request"]) --> Layer1
 
-    subgraph Layer1[Capa 1: Autenticación]
-        CheckAPIKey{Validar<br/>API Key}
+    subgraph Layer1["Capa 1: Autenticación JWT"]
+        CheckJWT{"Validar<br/>Bearer Token"}
     end
 
-    CheckAPIKey -->|Invalid| Reject1[403 Forbidden]
-    CheckAPIKey -->|Valid| Layer2
+    CheckJWT -->|"Sin token / inválido"| Reject1["401 Unauthorized"]
+    CheckJWT -->|"Válido"| CheckDisabled
 
-    subgraph Layer2[Capa 2: Rate Limiting]
-        CheckRate{Verificar<br/>Rate Limit<br/>Redis}
+    CheckDisabled{"¿Cuenta<br/>deshabilitada?"}
+    CheckDisabled -->|"Sí"| Reject1b["403 Forbidden"]
+    CheckDisabled -->|"No"| Layer2
+
+    subgraph Layer2["Capa 2: Rate Limiting"]
+        CheckRate{"Verificar<br/>Rate Limit<br/>Redis"}
     end
 
-    CheckRate -->|Exceeded| Reject2[429 Too Many Requests]
-    CheckRate -->|OK| Layer3
+    CheckRate -->|"Exceeded"| Reject2["429 Too Many Requests"]
+    CheckRate -->|"OK"| Layer3
 
-    subgraph Layer3[Capa 3: Validación de Input]
-        ValidateInput{Validar<br/>Schema<br/>Pydantic}
+    subgraph Layer3["Capa 3: RBAC"]
+        CheckRole{"¿Tiene rol<br/>requerido?"}
     end
 
-    ValidateInput -->|Invalid| Reject3[422 Unprocessable Entity]
-    ValidateInput -->|Valid| Layer4
+    CheckRole -->|"Pendiente / sin rol"| Reject3["403 Forbidden"]
+    CheckRole -->|"Autorizado"| Layer4
 
-    subgraph Layer4[Capa 4: Sanitización]
-        Sanitize[Limpiar metadata<br/>Prevenir XSS/Injection]
+    subgraph Layer4["Capa 4: Validación de Input"]
+        ValidateInput{"Validar<br/>Schema<br/>Pydantic"}
     end
 
-    Sanitize --> Layer5
+    ValidateInput -->|"Invalid"| Reject4["422 Unprocessable Entity"]
+    ValidateInput -->|"Valid"| Layer5
 
-    subgraph Layer5[Capa 5: Business Logic]
-        ProcessRequest[Procesar<br/>Use Case]
+    subgraph Layer5["Capa 5: Business Logic"]
+        ProcessRequest["Procesar<br/>Use Case"]
     end
 
-    ProcessRequest --> Success[200/201 Response]
-
-    style Reject1 fill:#ff6b6b
-    style Reject2 fill:#ff6b6b
-    style Reject3 fill:#ff6b6b
-    style Success fill:#51cf66
+    ProcessRequest --> Success["200/201 Response"]
 ```
 
-### Flujo de Autenticación con API Key
+### Flujo de Autenticación JWT
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Middleware as Auth Middleware
-    participant Config as Settings
-    participant Redis as Redis Cache
-    participant Endpoint
+    participant Client as Frontend
+    participant Middleware as JWT Middleware
+    participant Redis as Redis
+    participant DB as PostgreSQL
+    participant Endpoint as API Endpoint
 
-    Client->>Middleware: Request with<br/>X-API-Key header
+    Client->>Middleware: Request con<br/>Authorization: Bearer token
 
-    Middleware->>Middleware: Extract API Key
+    Middleware->>Middleware: Decodificar JWT (HS256)
 
-    alt No API Key
-        Middleware-->>Client: 403 Forbidden<br/>"Missing API Key"
-    else Has API Key
-        Middleware->>Redis: get(api_key_valid:{key})
+    alt Sin token
+        Middleware-->>Client: 401 Unauthorized
+    else Token inválido o expirado
+        Middleware-->>Client: 401 Unauthorized
+    else Token válido
+        Middleware->>DB: UserRepository.find_by_id(UUID)
+        DB-->>Middleware: User entity
 
-        alt Cache hit
-            Redis-->>Middleware: Cached validation
-        else Cache miss
-            Redis-->>Middleware: null
-            Middleware->>Config: Check if key in VALID_API_KEYS
-            Config-->>Middleware: Valid/Invalid
-            Middleware->>Redis: set(api_key_valid:{key}, result, 300s)
-        end
+        alt Usuario no encontrado
+            Middleware-->>Client: 401 Unauthorized
+        else Cuenta deshabilitada
+            Middleware-->>Client: 403 Forbidden
+        else Usuario válido
+            Middleware->>Redis: check_rate_limit(user:UUID)
+            Redis-->>Middleware: allowed, count, retry_after
 
-        alt Invalid Key
-            Middleware-->>Client: 403 Forbidden<br/>"Invalid API Key"
-        else Valid Key
-            Middleware->>Endpoint: Forward request
-            Endpoint-->>Middleware: Response
-            Middleware-->>Client: Response
+            alt Rate limit excedido
+                Middleware-->>Client: 429 Too Many Requests<br/>Headers: Retry-After, X-RateLimit-*
+            else Dentro del límite
+                Middleware->>Endpoint: Forward request + User context
+                Endpoint-->>Client: Response
+            end
         end
     end
 ```
+
+### Matriz de Permisos por Rol
+
+| Endpoint | Admin | Loader | Approver |
+|----------|:-----:|:------:|:--------:|
+| `GET /api/v1/documents` | Si | Si | Si |
+| `GET /api/v1/documents/{id}` | Si | Si | Si |
+| `POST /api/v1/documents` | Si | Si | No |
+| `PUT /api/v1/documents/{id}` | Si | Si | No |
+| `PATCH /api/v1/documents/{id}/status` | Si | No | Si |
+| `POST /api/v1/documents/batch/process` | Si | Si | No |
+| `GET /api/v1/jobs` | Si | Si | Si |
+| `GET /api/v1/jobs/{job_id}` | Si | Si | Si |
+| `GET /api/v1/admin/users` | Si | No | No |
+| `PATCH /api/v1/admin/users/{id}/approve` | Si | No | No |
+| `PATCH /api/v1/admin/users/{id}/disable` | Si | No | No |
+| `GET /api/v1/admin/logs` | Si | No | No |
 
 ---
 
@@ -759,80 +795,65 @@ sequenceDiagram
 
 | Patrón | Aplicación | Beneficio |
 |--------|-----------|-----------|
-| Clean Architecture | Estructura general | Separación de responsabilidades, testeable |
-| Repository Pattern | Acceso a datos | Abstracción de BD, facilita testing |
-| Use Case Pattern | Lógica de negocio | Un caso de uso = una responsabilidad |
-| State Machine | Validación de estados | Centraliza reglas de transición |
-| Dependency Injection | Toda la app | Bajo acoplamiento, fácil mock |
-| CQRS Light | Lectura vs escritura | Optimización de queries de búsqueda |
+| Clean Architecture | Estructura general del backend | Separación de responsabilidades, testeable |
+| Repository Pattern | Acceso a datos (Document, Job, User, Audit) | Abstracción de BD, facilita testing |
+| Use Case Pattern | Lógica de negocio en Application Layer | Un caso de uso = una responsabilidad |
+| State Machine | Validación de estados de documento | Centraliza reglas de transición |
+| Strategy Pattern | Sistema de notificaciones (canales intercambiables) | Extensibilidad sin modificar dispatcher |
+| Factory Pattern | Construcción de canales de notificación | Registro centralizado de tipos de canal |
+| Dependency Injection | Toda la app (FastAPI Depends) | Bajo acoplamiento, fácil mock |
+| Container/Presentational | Componentes React (Pages vs Components) | Separación de lógica y UI |
 
 ### Stack Tecnológico
 
 ```mermaid
 graph TB
     subgraph Frontend
-        React[React 18]
-        Tailwind[Tailwind CSS]
-        Axios[Axios]
+        React["React 18"]
+        ReactRouter["React Router v6"]
+        Tailwind["Tailwind CSS"]
+        Axios["Axios"]
+        Vite["Vite 5"]
     end
 
     subgraph Backend
-        FastAPI[FastAPI]
-        Pydantic[Pydantic]
-        SQLAlchemy[SQLAlchemy 2.0]
-        Celery[Celery]
-        Alembic[Alembic]
+        FastAPI["FastAPI"]
+        Pydantic["Pydantic v2"]
+        SQLAlchemy["SQLAlchemy 2.0"]
+        Celery["Celery"]
+        Alembic["Alembic"]
+        PythonJose["python-jose (JWT)"]
     end
 
     subgraph Database
-        PostgreSQL[PostgreSQL 15]
+        PostgreSQL["PostgreSQL 15"]
     end
 
-    subgraph Cache
-        Redis[Redis 7]
+    subgraph CacheBroker["Cache / Broker"]
+        Redis["Redis 7"]
+    end
+
+    subgraph Auth["Autenticación"]
+        GoogleOAuth2["Google OAuth2"]
+        JWTTokens["JWT HS256"]
+    end
+
+    subgraph SecretsMgmt["Secretos"]
+        Doppler["Doppler"]
     end
 
     subgraph Monitoring
-        Flower[Flower]
+        Flower["Flower"]
     end
 
-    Frontend -->|HTTP/REST| Backend
-    Backend -->|ORM| Database
-    Backend -->|Cache/Queue| Cache
-    Backend -->|Tasks| Celery
-    Celery -->|Broker| Cache
-    Celery -->|DB| Database
-    Monitoring -->|Monitor| Celery
-
-    style Frontend fill:#61dafb
-    style Backend fill:#009688
-    style Database fill:#336791
-    style Cache fill:#dc382d
+    Frontend -->|"HTTP/REST + JWT"| Backend
+    Backend -->|"ORM"| Database
+    Backend -->|"Cache/Queue"| CacheBroker
+    Backend -->|"Tasks"| Celery
+    Celery -->|"Broker"| CacheBroker
+    Celery -->|"DB"| Database
+    Monitoring -->|"Monitor"| Celery
+    Auth -->|"Identity"| Backend
+    SecretsMgmt -->|"Env vars"| Backend
+    SecretsMgmt -->|"Env vars"| Frontend
 ```
-
-### Métricas de Calidad
-
-- **Cobertura de Tests**: Mínimo 80%
-- **Separación de Capas**: 4 capas bien definidas
-- **Principios SOLID**: Aplicados en toda la arquitectura
-- **Performance**:
-  - API: < 100ms (p95)
-  - Batch Processing: 5-10s por documento
-  - Rate Limit: 100 req/min por IP
-- **Seguridad**: API Key + Rate Limiting + Input Sanitization
-
----
-
-## Próximos Pasos de Implementación
-
-1. ✅ Configurar estructura de directorios
-2. ✅ Crear modelos de dominio (Entities, Value Objects)
-3. ✅ Implementar State Machine
-4. ✅ Configurar Alembic y crear migraciones
-5. ✅ Implementar repositories
-6. ✅ Crear use cases
-7. ✅ Configurar Celery y tareas
-8. ✅ Implementar endpoints API
-9. ✅ Agregar middleware de seguridad
-10. ✅ Escribir tests
-11. ✅ Documentar en README
