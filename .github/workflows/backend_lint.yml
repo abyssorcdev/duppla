@@ -1,0 +1,42 @@
+name: Backend Lint
+
+on:
+  workflow_call:
+
+  push:
+    branches: ["*"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend_lint.yml"
+
+  pull_request:
+    branches: ["*"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend_lint.yml"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Ruff check
+        uses: astral-sh/ruff-action@v3
+        with:
+          src: "./backend/app"

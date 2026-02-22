@@ -1,0 +1,51 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy.yml"
+
+jobs:
+
+  ############################################################
+  # Backend
+  ############################################################
+
+  backend_lint:
+    name: Backend Lint
+    uses: ./.github/workflows/backend_lint.yml
+
+  backend_test:
+    name: Backend Tests
+    uses: ./.github/workflows/backend_test.yml
+
+  ############################################################
+  # Frontend
+  ############################################################
+
+  frontend_lint:
+    name: Frontend Lint
+    uses: ./.github/workflows/frontend_lint.yml
+
+  frontend_test:
+    name: Frontend Tests
+    uses: ./.github/workflows/frontend_test.yml
+
+  frontend_build:
+    name: Frontend Build
+    uses: ./.github/workflows/frontend_build.yml
+
+  ############################################################
+  # Deploy
+  ############################################################
+
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: [backend_lint, backend_test, frontend_lint, frontend_test, frontend_build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Trigger Render Deploy
+        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
