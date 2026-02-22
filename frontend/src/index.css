@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Base ────────────────────────────────────────────────────────────────── */
+body {
+  background-color: #F3EFFE;
+  color: #040326;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/*
+ * Dark mode overrides — outside @layer so they beat Tailwind utilities
+ * via specificity (two classes > one class).
+ *
+ * Light hierarchy (bottom → top):
+ *   page bg  #F3EFFE  →  card #FFFFFF  →  raised section #F9F7FF
+ *
+ * Dark hierarchy mirrors this (darker → lighter as you go up):
+ *   page bg  #06031A  →  card #0F0B24  →  raised section rgba(white/4%)
+ *
+ * Key principle: in dark mode "elevated = lighter", not darker.
+ */
+
+/* ─── Body ───────────────────────────────────────────────────────────────── */
+.dark body { background-color: #06031A; color: #E8D9FF; }
+
+/* ─── Surfaces — hierarchy: page < card < raised ──────────────────────────
+   page     #06031A  (very dark navy)
+   card     #0F0B24  (slightly lighter — the "white" cards)
+   raised   rgba(white, 4%) over card = subtle lift for inner sections
+   ─────────────────────────────────────────────────────────────────────── */
+.dark .bg-white     { background-color: #0F0B24; }
+.dark .bg-gray-50   { background-color: rgba(255, 255, 255, 0.04); }   /* raised — LIGHTER than card */
+.dark .bg-gray-100  { background-color: rgba(255, 255, 255, 0.06); }   /* slightly more raised */
+.dark .bg-brand-50  { background-color: #06031A; }
+.dark .bg-brand-100 { background-color: rgba(170, 119, 242, 0.12); }
+
+/* ─── Hover states ───────────────────────────────────────────────────────── */
+.dark .hover\:bg-gray-50:hover    { background-color: rgba(255, 255, 255, 0.05); }
+.dark .hover\:bg-gray-100:hover   { background-color: rgba(255, 255, 255, 0.08); }
+.dark .hover\:bg-brand-50:hover   { background-color: rgba(255, 255, 255, 0.03); }
+.dark .hover\:bg-brand-100:hover  { background-color: rgba(170, 119, 242, 0.16); }
+
+/* ─── Text — 3-level hierarchy ───────────────────────────────────────────── */
+.dark .text-brand-900 { color: #E8D9FF; }           /* primary   */
+.dark .text-brand-600 { color: #B48EE8; }           /* secondary */
+.dark .text-gray-800  { color: #E8D9FF; }           /* primary   */
+.dark .text-gray-700  { color: #CDB8F5; }           /* secondary */
+.dark .text-gray-600  { color: #B48EE8; }           /* secondary */
+.dark .text-gray-500  { color: #8A6CC4; }           /* muted     */
+.dark .text-gray-400  { color: #6B52A3; }           /* faint     */
+
+/* ─── Borders — hairlines, not blocks ───────────────────────────────────── */
+.dark .border-gray-100  { border-color: rgba(255, 255, 255, 0.07); }
+.dark .border-gray-200  { border-color: rgba(255, 255, 255, 0.10); }
+.dark .border-gray-300  { border-color: rgba(255, 255, 255, 0.13); }
+.dark .border-brand-100 { border-color: rgba(255, 255, 255, 0.07); }
+.dark .border-brand-200 { border-color: rgba(255, 255, 255, 0.10); }
+
+/* ─── Dividers ───────────────────────────────────────────────────────────── */
+.dark [class~="divide-gray-50"] > :not([hidden]) ~ :not([hidden])  { border-color: rgba(255,255,255,0.05); }
+.dark [class~="divide-gray-100"] > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,0.07); }
+
+/* ─── Form controls ──────────────────────────────────────────────────────── */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #E8D9FF;
+  border-color: rgba(255, 255, 255, 0.13);
+}
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus { border-color: rgba(57, 29, 242, 0.6); outline: none; }
+.dark input::placeholder,
+.dark textarea::placeholder { color: #6B52A3; }
+.dark select option           { background-color: #0F0B24; color: #E8D9FF; }
+
+/* ─── Shadows — lighter touch in dark ───────────────────────────────────── */
+.dark .shadow-sm  { box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 2px 8px rgba(0,0,0,0.4); }
+.dark .shadow-2xl { box-shadow: 0 8px 40px rgba(0,0,0,0.7); }
+
+/* ─── Status badges ──────────────────────────────────────────────────────── */
+.dark .bg-amber-50  { background-color: rgba(251,191,36,0.08);  }
+.dark .bg-amber-100 { background-color: rgba(251,191,36,0.14);  }
+.dark .border-amber-200  { border-color: rgba(251,191,36,0.25); }
+.dark .text-amber-800    { color: #FBD34D; }
+.dark .text-amber-700    { color: #FBD34D; }
+
+.dark .bg-green-50  { background-color: rgba(34,197,94,0.08);  }
+.dark .bg-green-100 { background-color: rgba(34,197,94,0.14);  }
+.dark .text-green-800 { color: #86EFAC; }
+.dark .text-green-700 { color: #86EFAC; }
+.dark .text-green-600 { color: #86EFAC; }
+
+.dark .bg-red-50  { background-color: rgba(239,68,68,0.08);  }
+.dark .bg-red-100 { background-color: rgba(239,68,68,0.14);  }
+.dark .border-red-200 { border-color: rgba(239,68,68,0.25);  }
+.dark .text-red-700 { color: #FCA5A5; }
+.dark .text-red-600 { color: #FCA5A5; }
+.dark .text-red-500 { color: #FCA5A5; }
+
+.dark .bg-blue-100  { background-color: rgba(59,130,246,0.14); }
+.dark .text-blue-700 { color: #93C5FD; }
+.dark .text-blue-600 { color: #93C5FD; }
+
+/* ─── Code / mono ────────────────────────────────────────────────────────── */
+.dark code { background-color: rgba(170,119,242,0.15); color: #C9A9F7; }
+.dark pre  { background-color: rgba(255,255,255,0.03); color: #C9A9F7; border: 1px solid rgba(255,255,255,0.07); }
