@@ -1,4 +1,5 @@
 services:
+
   # PostgreSQL Database
   db:
     image: postgres:15-alpine
@@ -42,20 +43,11 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    env_file:
+      - ./backend/.env
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres  # pragma: allowlist secret
-      - POSTGRES_DB=duppla
       - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
       - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - ENVIRONMENT=development
-      - LOG_LEVEL=DEBUG
-      - WEBHOOK_URL=https://webhook.site/a68da993-7a22-4521-a267-507e7f94b1ac
-      # VALID_API_KEYS es inyectada por Doppler en tiempo de ejecución
-      - DOPPLER_TOKEN=${DOPPLER_TOKEN}
     volumes:
       - ./backend/app:/app/app
       - ./backend/alembic:/app/alembic
@@ -66,7 +58,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: doppler run --project duppla --config dev -- uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Celery Worker for Async Processing
   celery-worker:
@@ -75,20 +67,12 @@ services:
       dockerfile: Dockerfile
     container_name: duppla_celery_worker
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres  # pragma: allowlist secret
-      - POSTGRES_DB=duppla
       - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
       - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - ENVIRONMENT=development
       - LOG_LEVEL=INFO
-      - WEBHOOK_URL=https://webhook.site/a68da993-7a22-4521-a267-507e7f94b1ac
-      # VALID_API_KEYS es inyectada por Doppler en tiempo de ejecución
-      - DOPPLER_TOKEN=${DOPPLER_TOKEN}
     volumes:
       - ./backend/app:/app/app
     depends_on:
@@ -98,9 +82,9 @@ services:
         condition: service_healthy
       backend:
         condition: service_started
-    command: doppler run --project duppla --config dev -- celery -A worker.celery_app worker --loglevel=info --concurrency=4
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=4
 
-  # Flower - Celery Monitoring Tool (Optional)
+  # Flower - Celery Monitoring Tool
   flower:
     build:
       context: ./backend
@@ -109,32 +93,34 @@ services:
     restart: unless-stopped
     ports:
       - "5555:5555"
+    env_file:
+      - ./backend/.env
     environment:
       - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
     depends_on:
       - redis
       - celery-worker
     command: celery -A worker.celery_app flower --port=5555
 
-  # React Frontend (Development) - Optional
-  # Uncomment when ready to implement frontend
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile.dev
-  #   container_name: duppla_frontend
-  #   restart: unless-stopped
-  #   ports:
-  #     - "5173:5173"
-  #   environment:
-  #     - VITE_API_URL=http://localhost:8000
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   depends_on:
-  #     - backend
+  # React Frontend (Development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: duppla_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./frontend/.env
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_started
+    command: npm run dev
 
 volumes:
   postgres_data:
