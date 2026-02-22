@@ -1,19 +1,23 @@
-name: CI
+name: Backend CI
 
 on:
   push:
     branches: [develop, main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
   pull_request:
     branches: [develop, main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
 
 env:
   PYTHON_VERSION: "3.11"
-  NODE_VERSION: "20"
 
 jobs:
-  # ── Backend Lint ──────────────────────────────────────────
-  backend-lint:
-    name: Backend Lint
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,9 +38,8 @@ jobs:
       - name: Ruff format check
         run: ruff format --check . --config ruff.toml
 
-  # ── Backend Tests ─────────────────────────────────────────
-  backend-test:
-    name: Backend Tests
+  test:
+    name: Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -92,59 +95,12 @@ jobs:
       - name: Run tests
         run: |
           pytest --override-ini="addopts=--verbose --tb=short -ra" \
-            || test $? -eq 5  # exit 5 = no tests collected (ok until tests are added)
+            || test $? -eq 5  # exit 5 = no tests collected
 
-  # ── Frontend Lint ─────────────────────────────────────────
-  frontend-lint:
-    name: Frontend Lint
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: ESLint
-        run: npm run lint
-
-  # ── Frontend Build ────────────────────────────────────────
-  frontend-build:
-    name: Frontend Build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-        env:
-          VITE_API_URL: https://duppla-backend.onrender.com
-
-  # ── Deploy to Render ──────────────────────────────────────
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
-    needs: [backend-lint, backend-test, frontend-lint, frontend-build]
+    needs: [lint, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Trigger Render Deploy
