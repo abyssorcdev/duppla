@@ -78,7 +78,9 @@ class UpdateStatusRequest(BaseModel):
     new_status: DocumentStatus = Field(
         ..., description="New status. DRAFT not allowed as target — use pending, approved or rejected"
     )
-    user_id: str = Field(..., min_length=1, max_length=100, description="User performing the status change")
+    comment: Optional[str] = Field(
+        None, max_length=500, description="Rejection comment (saved to document metadata when rejecting)"
+    )
 
     @field_validator("new_status")
     @classmethod

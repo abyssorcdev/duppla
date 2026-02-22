@@ -44,10 +44,10 @@ class CreateDocument:
 
         created_document = self.repository.create(document)
 
-        self.audit_repository.log_action(
-            document_id=created_document.id,
-            action="created",
-            new_value=f"type={created_document.type}, amount={created_document.amount}",
+        self.audit_repository.log_created(
+            table_name="documents",
+            record_id=str(created_document.id),
+            summary=f"type={created_document.type}, amount={created_document.amount}",
             user_id=request.created_by,
         )
 

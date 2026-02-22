@@ -58,9 +58,9 @@ class UpdateDocument:
         update_data = {key: value for key, value in update_mapping.items() if value is not None}
         updated_document = self.repository.update(document_id, update_data)
 
-        self.audit_repository.log_action(
-            document_id=document_id,
-            action="updated",
+        self.audit_repository.log_field_updated(
+            table_name="documents",
+            record_id=str(document_id),
             old_value=str({k: getattr(document, k, None) for k in update_data}),
             new_value=str(update_data),
             user_id=request.user_id,

@@ -6,6 +6,7 @@ Handles document status transitions with state machine validation and audit logg
 from sqlalchemy.orm import Session
 
 from app.application.dtos.document_dtos import DocumentResponse, UpdateStatusRequest
+from app.domain.entities.document.status import DocumentStatus
 from app.domain.exceptions import (
     DocumentNotFoundException,
     InvalidStateTransitionException,
@@ -27,12 +28,13 @@ class UpdateStatus:
         self.document_repository = DocumentRepository(db)
         self.audit_repository = AuditRepository(db)
 
-    def execute(self, document_id: int, request: UpdateStatusRequest) -> DocumentResponse:
+    def execute(self, document_id: int, request: UpdateStatusRequest, user_email: str) -> DocumentResponse:
         """Execute status update with validation and audit logging.
 
         Args:
             document_id: Document ID to update
             request: Status update request
+            user_email: Email of the authenticated user performing the action
 
         Returns:
             Updated document response
@@ -42,7 +44,6 @@ class UpdateStatus:
             InvalidStateTransitionException: If transition is not allowed
         """
         document = self.document_repository.get_by_id(document_id)
-        user_id = request.user_id
 
         if not document:
             raise DocumentNotFoundException(document_id)
@@ -52,14 +53,25 @@ class UpdateStatus:
 
         old_status = document.status
         document.change_status(request.new_status)
-        updated_document = self.document_repository.update_status(document_id, request.new_status)
 
-        self.audit_repository.log_action(
-            document_id=document_id,
-            action="state_change",
-            old_value=old_status,
-            new_value=request.new_status,
-            user_id=user_id,
+        update_fields: dict = {"status": request.new_status}
+
+        if request.new_status == DocumentStatus.REJECTED.value and request.comment:
+            enriched_metadata = {
+                **document.metadata,
+                "rejection_comment": request.comment,
+                "rejected_by": user_email,
+            }
+            update_fields["metadata"] = enriched_metadata
+
+        updated_document = self.document_repository.update(document_id, update_fields)
+
+        self.audit_repository.log_state_change(
+            table_name="documents",
+            record_id=str(document_id),
+            old_state=old_status,
+            new_state=request.new_status,
+            user_id=user_email,
         )
 
         return DocumentResponse(
