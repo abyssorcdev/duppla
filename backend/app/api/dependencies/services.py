@@ -11,6 +11,7 @@ from app.application.services import (
     CreateDocument,
     GetDocument,
     GetJobStatus,
+    ListJobs,
     ProcessBatch,
     SearchDocuments,
     UpdateDocument,
@@ -59,3 +60,8 @@ def get_get_job_status_service(
 ) -> GetJobStatus:
     """Get GetJobStatus service instance."""
     return GetJobStatus(db)
+
+
+def get_list_jobs_service(db: Session = Depends(get_database)) -> ListJobs:
+    """Get ListJobs service instance."""
+    return ListJobs(db)

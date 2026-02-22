@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, List
 
 from pydantic_settings import BaseSettings
@@ -9,9 +10,12 @@ class Settings(BaseSettings):
 
     All settings can be overridden via environment variables.
     Example: POSTGRES_USER=myuser will override the default.
+
+    Managed platforms (Render, Railway, etc.) inject DATABASE_URL and
+    REDIS_URL directly.  When present they take precedence over the
+    individual host/port/user/password variables.
     """
 
-    # Application
     PROJECT_NAME: str = "Duppla API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
@@ -19,41 +23,41 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     SQL_ECHO: bool = False
 
-    # Database
+    # Database — individual vars for local dev / docker-compose
     POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"  # noqa: S105  # Default value, override with .env
+    POSTGRES_PASSWORD: str = "postgres"  # noqa: S105
     POSTGRES_DB: str = "duppla"
     POSTGRES_HOST: str = "db"
     POSTGRES_PORT: int = 5432
 
     @property
     def DATABASE_URL(self) -> str:
-        """Construct PostgreSQL connection URL."""
+        """Return DATABASE_URL from env if set, otherwise build from components."""
+        url = os.getenv("DATABASE_URL")
+        if url:
+            return url
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
-    # Redis
+    # Redis — individual vars for local dev / docker-compose
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
 
     @property
     def REDIS_URL(self) -> str:
-        """Construct Redis connection URL."""
+        """Return REDIS_URL from env if set, otherwise build from components."""
+        url = os.getenv("REDIS_URL")
+        if url:
+            return url
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
-    # Celery
-    @property
-    def CELERY_BROKER_URL(self) -> str:
-        """Celery broker URL (Redis)."""
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
-
-    @property
-    def CELERY_RESULT_BACKEND(self) -> str:
-        """Celery result backend URL (Redis)."""
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"
-
-    # Security - API Keys
-    VALID_API_KEYS: dict = {}
+    VALID_API_KEYS: dict = {
+        "get": ["get-key-123"],
+        "post": ["post-key-456"],
+        "put": ["put-key-789"],
+        "patch": ["patch-key-012"],
+        "delete": ["delete-key-345"],
+    }
 
     def API_KEYS_ALLOWED(self, method: str) -> List[str]:
         """Get the list of API keys allowed for a given HTTP method (GET, POST, PUT, DELETE)."""
@@ -85,8 +89,21 @@ class Settings(BaseSettings):
 
     # Cache & Rate limiting
     API_KEY_CACHE_TTL: int = 300  # seconds — how long a validated key stays cached
-    RATE_LIMIT_REQUESTS: int = 10  # max requests per window per API key
+    RATE_LIMIT_REQUESTS: int = 100  # max requests per window per API key
     RATE_LIMIT_WINDOW_SECONDS: int = 60  # sliding window size in seconds
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
+
+    # JWT
+    JWT_SECRET_KEY: str = "change-me-in-production"  # noqa: S105
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # Frontend URL (used for OAuth redirects)
+    FRONTEND_URL: str = "http://localhost:5173"
 
     class Config:
         case_sensitive = True

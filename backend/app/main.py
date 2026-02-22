@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware import domain_exception_handler, validation_exception_handler
-from app.api.routes import batch_router, documents_router
+from app.api.routes import admin_router, auth_router, batch_router, documents_router, jobs_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.domain.exceptions import DomainException
@@ -38,8 +38,11 @@ app.add_exception_handler(DomainException, domain_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 # Include routers
+app.include_router(auth_router)  # /auth/* — no version prefix, OAuth redirects
+app.include_router(admin_router, prefix=settings.API_V1_STR)
 app.include_router(documents_router, prefix=settings.API_V1_STR)
 app.include_router(batch_router, prefix=settings.API_V1_STR)
+app.include_router(jobs_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/", tags=["health"])
