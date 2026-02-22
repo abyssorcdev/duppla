@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { faker } from '../test/helpers'
 
 vi.stubGlobal('localStorage', {
@@ -12,7 +12,7 @@ vi.stubGlobal('localStorage', {
 const locationAssign = vi.fn()
 vi.stubGlobal('window', {
   ...globalThis.window,
-  location: { href: '', set href(v) { locationAssign(v) } },
+  location: { set href(v) { locationAssign(v) } },
 })
 
 let client

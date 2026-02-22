@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { faker, makeJob } from '../test/helpers'
+import { makeJob } from '../test/helpers'
 
 vi.mock('./client', () => ({
   default: {
