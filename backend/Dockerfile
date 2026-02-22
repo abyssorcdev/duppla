@@ -11,6 +11,7 @@ COPY ./app ./app
 COPY ./worker.py ./worker.py
 COPY ./alembic.ini ./alembic.ini
 COPY ./alembic ./alembic
+COPY ./scripts ./scripts
 COPY ./start.sh ./start.sh
 RUN chmod +x ./start.sh
 
