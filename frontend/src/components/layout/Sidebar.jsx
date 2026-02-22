@@ -6,7 +6,7 @@ const ROLE_LABELS = { admin: 'Administrador', loader: 'Cargador', approver: 'Apr
 
 export default function Sidebar() {
   const { isDark, toggle } = useTheme()
-  const { user, logout, canCreate, canAdmin } = useAuth()
+  const { user, logout, canAdmin } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = () => {
