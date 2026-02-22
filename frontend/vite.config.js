@@ -10,5 +10,18 @@ export default defineConfig({
     watch: {
       usePolling: true
     }
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    pool: 'threads',
+    setupFiles: ['./src/test/setup.js'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,jsx}'],
+      exclude: ['src/test/**', 'src/main.jsx'],
+      reporter: ['text'],
+      all: true,
+    },
   }
 })
