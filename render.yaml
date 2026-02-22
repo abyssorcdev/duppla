@@ -1,0 +1,135 @@
+databases:
+  - name: duppla-db
+    plan: free
+    databaseName: duppla
+    user: duppla
+    postgresMajorVersion: "15"
+
+services:
+  # ── Backend API ──────────────────────────────────────────
+  - type: web
+    name: duppla-backend
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: duppla-db
+          property: connectionString
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: duppla-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: duppla-db
+          property: port
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: duppla-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: duppla-db
+          property: password
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: duppla-db
+          property: database
+      - key: REDIS_URL
+        fromService:
+          name: duppla-redis
+          type: redis
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          name: duppla-redis
+          type: redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          name: duppla-redis
+          type: redis
+          property: port
+      - fromGroup: duppla-secrets
+    healthCheckPath: /health
+
+  # ── Celery Worker ────────────────────────────────────────
+  - type: worker
+    name: duppla-worker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: celery -A worker.celery_app worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: duppla-db
+          property: connectionString
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: duppla-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: duppla-db
+          property: port
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: duppla-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: duppla-db
+          property: password
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: duppla-db
+          property: database
+      - key: REDIS_URL
+        fromService:
+          name: duppla-redis
+          type: redis
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          name: duppla-redis
+          type: redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          name: duppla-redis
+          type: redis
+          property: port
+      - fromGroup: duppla-secrets
+
+  # ── Frontend SPA ─────────────────────────────────────────
+  - type: web
+    name: duppla-frontend
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    rootDir: ./frontend
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://duppla-backend.onrender.com
+
+  # ── Redis ────────────────────────────────────────────────
+  - type: redis
+    name: duppla-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
