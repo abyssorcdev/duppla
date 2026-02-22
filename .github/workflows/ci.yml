@@ -83,9 +83,12 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov
 
+      - name: Run database migrations
+        run: alembic upgrade head
+
       - name: Run tests
         run: |
-          pytest --override-ini="addopts=--verbose --tb=short -ra" \
+          pytest tests --cov=app --cov-config=setup.cfg --cov-report=term-missing --verbose --tb=short -ra \
             || test $? -eq 5
 
   frontend-lint:
@@ -128,7 +131,7 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm run test --if-present
+        run: npm test -- --coverage
 
   ############################################################
   # Stage 2: Build (after lint & tests pass)

@@ -153,15 +153,16 @@ class DocumentRepository:
             ),
         ]
 
+        _operator_fn = {
+            FilterOperator.EQUAL: lambda col, val: col == val,
+            FilterOperator.GREATER_THAN_OR_EQUAL: lambda col, val: col >= val,
+            FilterOperator.LESS_THAN_OR_EQUAL: lambda col, val: col <= val,
+        }
+
         for filter_key, column, operator in filter_mappings:
             value = filters.get(filter_key)
             if value is not None:
-                if operator == FilterOperator.EQUAL:
-                    query = query.filter(column == value)
-                elif operator == FilterOperator.GREATER_THAN_OR_EQUAL:
-                    query = query.filter(column >= value)
-                elif operator == FilterOperator.LESS_THAN_OR_EQUAL:
-                    query = query.filter(column <= value)
+                query = query.filter(_operator_fn[operator](column, value))
 
         total = query.count()
         documents = query.order_by(DocumentModel.created_at.desc()).offset(skip).limit(limit).all()

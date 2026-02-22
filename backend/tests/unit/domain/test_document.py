@@ -3,6 +3,8 @@
 import unittest
 from decimal import Decimal
 
+from tests.common import BaseTestCase
+
 from app.domain.entities.document.document import Document
 from app.domain.entities.document.status import DocumentStatus
 from app.domain.exceptions import (
@@ -12,14 +14,14 @@ from app.domain.exceptions import (
 )
 
 
-class DocumentTestCase(unittest.TestCase):
+class DocumentTestCase(BaseTestCase):
     """Global base class for ALL Document tests."""
 
     def setUp(self) -> None:
         super().setUp()
-        self.valid_type = "invoice"
-        self.valid_amount = Decimal("1000.00")
-        self.valid_metadata = {"client": "Acme Corp", "email": "acme@example.com"}
+        self.valid_type = self.fake.random_element(["invoice", "receipt", "voucher"])
+        self.valid_amount = Decimal(str(self.fake.pydecimal(min_value=1, max_value=999_999, right_digits=2, positive=True)))
+        self.valid_metadata = {"client": self.fake.company(), "email": self.fake.company_email()}
 
     def get_instance(self, **overrides: object) -> Document:
         """Factory method for creating Document instances."""
@@ -40,14 +42,16 @@ class TestUnderScoreUnderScoreInit(DocumentTestCase):
         When: Document is created with valid parameters
         Then: Should set all attributes correctly
         """
-        doc = self.get_instance(id=1, created_by="user-1")
+        doc_id = self.fake.random_int(min=1, max=99_999)
+        created_by = self.fake.email()
+        doc = self.get_instance(id=doc_id, created_by=created_by)
 
-        self.assertEqual(doc.id, 1)
+        self.assertEqual(doc.id, doc_id)
         self.assertEqual(doc.type, self.valid_type)
         self.assertEqual(doc.amount, self.valid_amount)
         self.assertEqual(doc.status, DocumentStatus.DRAFT.value)
         self.assertEqual(doc.metadata, self.valid_metadata)
-        self.assertEqual(doc.created_by, "user-1")
+        self.assertEqual(doc.created_by, created_by)
         self.assertIsNotNone(doc.created_at)
         self.assertIsNotNone(doc.updated_at)
 
@@ -56,7 +60,8 @@ class TestUnderScoreUnderScoreInit(DocumentTestCase):
         When: Document is created with only required parameters
         Then: Should use default values for optional fields
         """
-        doc = Document(type="receipt", amount=Decimal("500"))
+        amount = Decimal(str(self.fake.pydecimal(min_value=1, max_value=9999, right_digits=2, positive=True)))
+        doc = Document(type="receipt", amount=amount)
 
         self.assertIsNone(doc.id)
         self.assertEqual(doc.status, DocumentStatus.DRAFT.value)
@@ -143,15 +148,14 @@ class TestUpdate(DocumentTestCase):
         """
         doc = self.get_instance()
 
-        doc.update(
-            type="receipt",
-            amount=Decimal("2000.00"),
-            metadata={"client": "New Corp"},
-        )
+        new_type = self.fake.random_element(["receipt", "voucher"])
+        new_amount = Decimal(str(self.fake.pydecimal(min_value=1, max_value=999_999, right_digits=2, positive=True)))
+        new_metadata = {"client": self.fake.company()}
+        doc.update(type=new_type, amount=new_amount, metadata=new_metadata)
 
-        self.assertEqual(doc.type, "receipt")
-        self.assertEqual(doc.amount, Decimal("2000.00"))
-        self.assertEqual(doc.metadata, {"client": "New Corp"})
+        self.assertEqual(doc.type, new_type)
+        self.assertEqual(doc.amount, new_amount)
+        self.assertEqual(doc.metadata, new_metadata)
 
     def test_update_success_partial_fields(self) -> None:
         """
@@ -161,9 +165,10 @@ class TestUpdate(DocumentTestCase):
         doc = self.get_instance()
         original_type = doc.type
 
-        doc.update(amount=Decimal("5000.00"))
+        new_amount = Decimal(str(self.fake.pydecimal(min_value=1, max_value=999_999, right_digits=2, positive=True)))
+        doc.update(amount=new_amount)
 
-        self.assertEqual(doc.amount, Decimal("5000.00"))
+        self.assertEqual(doc.amount, new_amount)
         self.assertEqual(doc.type, original_type)
 
     def test_update_error_not_in_draft(self) -> None:
@@ -232,7 +237,7 @@ class TestEvaluateForAutoProcessing(DocumentTestCase):
         When: Only some required metadata fields are present
         Then: Should return REJECTED
         """
-        doc = self.get_instance(metadata={"client": "Acme"})
+        doc = self.get_instance(metadata={"client": self.fake.company()})
 
         status, reason = doc.evaluate_for_auto_processing()
 
@@ -306,3 +311,19 @@ class TestIsUnderScoreFinalUnderScoreState(DocumentTestCase):
         doc.change_status(DocumentStatus.PENDING.value)
         doc.change_status(DocumentStatus.REJECTED.value)
         self.assertFalse(doc.is_final_state())
+
+
+class TestUnderScoreUnderScoreRepr(DocumentTestCase):
+    """Tests for __repr__()."""
+
+    def test_repr_success_format(self) -> None:
+        doc = self.get_instance()
+        result = repr(doc)
+        self.assertIn("Document(", result)
+        self.assertIn(f"type='{doc.type}'", result)
+        self.assertIn(f"status='{doc.status}'", result)
+
+    def test_repr_success_contains_amount(self) -> None:
+        doc = self.get_instance()
+        result = repr(doc)
+        self.assertIn(str(doc.amount), result)
