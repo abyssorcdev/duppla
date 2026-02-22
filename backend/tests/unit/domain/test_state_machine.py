@@ -2,11 +2,13 @@
 
 import unittest
 
+from tests.common import BaseTestCase
+
 from app.domain.entities.document.status import DocumentStatus
 from app.domain.state_machine import StateMachine
 
 
-class StateMachineTestCase(unittest.TestCase):
+class StateMachineTestCase(BaseTestCase):
     """Global base class for ALL StateMachine tests."""
 
     def setUp(self) -> None:
@@ -171,7 +173,3 @@ class TestIsUnderScoreFinalUnderScoreState(StateMachineTestCase):
         Then: Should return False
         """
         self.assertFalse(StateMachine.is_final_state(self.rejected))
-
-
-if __name__ == "__main__":
-    unittest.main()
