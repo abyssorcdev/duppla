@@ -1,172 +1,194 @@
-# Duppla - Full Stack Application
+# Duppla - API de Documentos Financieros
 
-Aplicación full-stack con FastAPI, React, PostgreSQL y Redis, todo orquestado con Docker Compose.
+Sistema full-stack para la gestión de documentos financieros con procesamiento batch asíncrono, autenticación OAuth2 con Google y control de acceso basado en roles (RBAC).
 
-## 🚀 Tecnologías
+> **Beta desplegada en Render**: El proyecto cuenta con una versión beta funcional desplegada en [Render](https://render.com) mediante blueprint (`render.yaml`), incluyendo backend, frontend, Celery worker, PostgreSQL y Redis. Disponible en [Duppla Finance](https://duppla-frontend.onrender.com/).
+
+## Arquitectura
+
+El backend sigue **Clean Architecture** con cuatro capas concéntricas donde las dependencias siempre apuntan hacia el centro (Domain):
+
+```
+Presentation (routes, middleware) → Application (services, DTOs) → Domain (entities, state machine)
+                                                                    ↑
+                              Infrastructure (repos, cache, notifications) ── implementa contratos de Domain
+```
+
+El frontend usa el patrón **Container/Presentational** con React Context para estado global y custom hooks para lógica reutilizable.
+
+## Stack Tecnológico
 
 ### Backend
-- **FastAPI** - Framework web moderno para Python
-- **SQLAlchemy** - ORM para PostgreSQL
-- **Redis** - Caché en memoria
-- **Uvicorn** - Servidor ASGI
+| Tecnología | Propósito |
+|-----------|-----------|
+| **FastAPI** + Uvicorn | Framework web y servidor ASGI |
+| **SQLAlchemy 2.0** + Alembic | ORM y migraciones de base de datos |
+| **Celery** | Procesamiento batch asíncrono |
+| **Redis 7** | Cache, rate limiting (sliding window) y broker de mensajes |
+| **PostgreSQL 15** | Persistencia (schema `finance`) |
+| **python-jose** | Emisión y validación de JWT (HS256) |
+| **Pydantic v2** | Validación de DTOs y configuración |
+| **uv** | Gestión de dependencias (`requirements.txt`) |
 
 ### Frontend
-- **React 18** - Biblioteca de UI
-- **Vite** - Build tool
-- **Tailwind CSS** - Framework CSS
-- **Axios** - Cliente HTTP
+| Tecnología | Propósito |
+|-----------|-----------|
+| **React 18** | UI declarativa con componentes funcionales |
+| **React Router v6** | Routing SPA con rutas protegidas y anidadas |
+| **Tailwind CSS 3.4** | Utility-first CSS con dark mode (clase) |
+| **Axios 1.6** | Cliente HTTP con interceptors para JWT |
+| **Vite 5** | Build tool y dev server con HMR |
 
-### Base de Datos
-- **PostgreSQL 15** - Base de datos relacional
-- **Redis 7** - Almacenamiento en caché
+### Testing
+| Tecnología | Propósito |
+|-----------|-----------|
+| **pytest** + pytest-cov | Tests unitarios e integración backend (100% coverage) |
+| **Vitest** + Testing Library | Tests unitarios frontend (~100% coverage) |
+| **Faker** | Generación dinámica de datos de prueba |
 
-## 📋 Requisitos Previos
+## Estructura del Proyecto
 
-- Docker (versión 20.10 o superior)
-- Docker Compose (versión 2.0 o superior)
+```
+duppla/
+├── backend/
+│   ├── alembic/versions/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── dependencies/
+│   │   │   ├── middleware/
+│   │   │   └── routes/
+│   │   ├── application/
+│   │   │   ├── dtos/
+│   │   │   └── services/
+│   │   ├── core/
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   ├── exceptions.py
+│   │   │   └── state_machine.py
+│   │   └── infrastructure/
+│   │       ├── cache/
+│   │       ├── database/
+│   │       ├── notifications/
+│   │       └── repositories/
+│   ├── tests/
+│   │   ├── common/
+│   │   ├── unit/
+│   │   └── integration/
+│   ├── setup.cfg
+│   └── worker.py
+├── frontend/
+│   ├── src/
+│   │   ├── api/
+│   │   ├── components/
+│   │   │   ├── auth/
+│   │   │   ├── batch/
+│   │   │   ├── common/
+│   │   │   ├── documents/
+│   │   │   └── layout/
+│   │   ├── context/
+│   │   ├── hooks/
+│   │   ├── pages/
+│   │   ├── test/
+│   │   └── utils/
+│   └── vite.config.js
+├── .github/workflows/ci.yml
+├── docker-compose.yml
+├── render.yaml
+└── README.md
+```
 
-## 🛠️ Instalación y Configuración
+## Funcionalidades Principales
+
+### Gestión de Documentos
+- CRUD completo con validación de negocio (monto > 0, metadata requerida)
+- Máquina de estados: `DRAFT → PENDING → APPROVED` / `REJECTED → DRAFT`
+- Búsqueda con filtros (tipo, estado, rango de monto) y paginación
+- Auditoría automática de cada operación
+
+### Procesamiento Batch Asíncrono
+- Envío de lotes de documentos a procesamiento vía Celery
+- Auto-evaluación: monto, metadata, reglas de negocio
+- Polling de estado del job desde el frontend
+- Notificación webhook al completar
+
+### Autenticación y Autorización
+- Login con Google OAuth2 (flujo authorization code)
+- JWT con auto-expiración y logout automático
+- RBAC con 3 roles: `admin`, `loader`, `approver`
+- Flujo de aprobación: usuarios nuevos quedan en `PENDING` hasta que un admin les asigna rol
+
+### Panel de Administración
+- Gestión de usuarios (aprobar, deshabilitar, cambiar rol)
+- Logs de auditoría con filtros y paginación
+- Dashboard con estadísticas agregadas
+
+## Requisitos Previos
+
+- Docker (>= 20.10) y Docker Compose (>= 2.0)
+- O bien: Python 3.11+, Node.js 18+, PostgreSQL 15, Redis 7
+
+## Instalación y Configuración
 
 ### 1. Clonar el Repositorio
 
 ```bash
-git clone <tu-repositorio>
+git clone https://github.com/abyssorcdev/duppla.git
 cd duppla
 ```
 
 ### 2. Configurar Variables de Entorno
 
-#### Backend
 ```bash
 cp backend/.env.example backend/.env
-```
-
-#### Frontend
-```bash
 cp frontend/.env.example frontend/.env
 ```
 
-## 🐳 Uso con Docker Compose
+Variables requeridas en el backend:
+- `DATABASE_URL` / credenciales PostgreSQL
+- `REDIS_URL` / `REDIS_HOST` / `REDIS_PORT`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+- `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `JWT_EXPIRE_MINUTES`
+- `WEBHOOK_URL` (opcional, para notificaciones)
+
+## Uso con Docker Compose
 
 ### Modo Desarrollo
-
-Para iniciar todos los servicios en modo desarrollo:
 
 ```bash
 docker-compose up -d
 ```
 
-Esto iniciará:
-- **Backend** en `http://localhost:8000`
+Esto inicia 7 servicios:
+- **Backend** en `http://localhost:8000` (API + Swagger en `/api/v1/docs`)
 - **Frontend** en `http://localhost:5173`
+- **Celery Worker** para procesamiento batch
+- **Flower** en `http://localhost:5555` (monitoreo de tareas)
 - **PostgreSQL** en `localhost:5432`
 - **Redis** en `localhost:6379`
 
-### Ver Logs
+### Comandos Comunes
 
 ```bash
-# Todos los servicios
-docker-compose logs -f
-
-# Solo backend
-docker-compose logs -f backend
-
-# Solo frontend
-docker-compose logs -f frontend
+docker-compose logs -f backend        # Logs del backend
+docker-compose exec backend alembic upgrade head  # Ejecutar migraciones
+docker-compose down                   # Detener servicios
+docker-compose down -v                # Detener y borrar volúmenes
 ```
 
-### Detener los Servicios
+## Desarrollo Local (sin Docker)
 
-```bash
-docker-compose down
-```
-
-### Limpiar Volúmenes (Borrar Base de Datos)
-
-```bash
-docker-compose down -v
-```
-
-### Modo Producción
-
-Para producción, usa el archivo `docker-compose.prod.yml`:
-
-```bash
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-Este modo incluye:
-- Frontend servido por Nginx
-- Backend con múltiples workers
-- Red aislada para los servicios
-
-## 📡 Endpoints de la API
-
-### Endpoints Principales
-
-- `GET /` - Mensaje de bienvenida
-- `GET /health` - Estado de salud de la API
-- `GET /api/v1/test-db` - Verificar conexión a PostgreSQL
-- `GET /api/v1/test-redis` - Verificar conexión a Redis
-- `GET /docs` - Documentación interactiva de la API (Swagger UI)
-- `GET /redoc` - Documentación alternativa (ReDoc)
-
-## 🏗️ Estructura del Proyecto
-
-```
-duppla/
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── __init__.py
-│   │   │   └── routes.py          # Endpoints de la API
-│   │   ├── core/
-│   │   │   ├── __init__.py
-│   │   │   └── config.py          # Configuración
-│   │   ├── db/
-│   │   │   ├── __init__.py
-│   │   │   ├── database.py        # Conexión PostgreSQL
-│   │   │   └── redis_client.py    # Cliente Redis
-│   │   ├── __init__.py
-│   │   └── main.py                # Punto de entrada
-│   ├── .env.example
-│   ├── .gitignore
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── App.jsx                # Componente principal
-│   │   ├── index.css              # Estilos globales
-│   │   └── main.jsx               # Punto de entrada
-│   ├── .env.example
-│   ├── .gitignore
-│   ├── Dockerfile
-│   ├── Dockerfile.dev
-│   ├── index.html
-│   ├── nginx.conf
-│   ├── package.json
-│   ├── postcss.config.js
-│   ├── tailwind.config.js
-│   └── vite.config.js
-├── docker-compose.yml             # Desarrollo
-├── docker-compose.prod.yml        # Producción
-└── README.md
-```
-
-## 🔧 Desarrollo
-
-### Ejecutar Backend Localmente (sin Docker)
+### Backend
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-pip install -r requirements.txt
+uv venv
+source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+uv pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-### Ejecutar Frontend Localmente (sin Docker)
+### Frontend
 
 ```bash
 cd frontend
@@ -174,136 +196,78 @@ npm install
 npm run dev
 ```
 
-## 🧪 Verificar la Instalación
+## Testing
 
-1. Abre tu navegador en `http://localhost:5173`
-2. Deberías ver una página con el estado de los servicios
-3. Todos los servicios deben mostrar "✓ Conectado"
-
-## 📝 Comandos Útiles
-
-### Docker Compose
+### Backend (pytest)
 
 ```bash
-# Construir imágenes sin cache
-docker-compose build --no-cache
-
-# Reiniciar un servicio específico
-docker-compose restart backend
-
-# Ver contenedores en ejecución
-docker-compose ps
-
-# Ejecutar comando en un contenedor
-docker-compose exec backend bash
-docker-compose exec frontend sh
-
-# Ver uso de recursos
-docker stats
+cd backend
+pytest tests --cov=app --cov-config=setup.cfg --cov-report=term-missing --verbose
 ```
 
-### Backend
+Los tests de integración requieren una base de datos PostgreSQL real (configurada automáticamente en CI vía GitHub Actions services).
+
+### Frontend (Vitest)
 
 ```bash
-# Acceder al shell de Python en el contenedor
-docker-compose exec backend python
-
-# Ejecutar migraciones (cuando estén configuradas)
-docker-compose exec backend alembic upgrade head
+cd frontend
+npm test -- --coverage
 ```
 
-### Base de Datos
+## CI/CD
 
-```bash
-# Acceder a PostgreSQL
-docker-compose exec db psql -U postgres -d duppla
+El proyecto usa **GitHub Actions** con el siguiente pipeline:
 
-# Backup de la base de datos
-docker-compose exec db pg_dump -U postgres duppla > backup.sql
+1. **Lint Backend** - Ruff (linting + formatting)
+2. **Lint Frontend** - ESLint
+3. **Test Backend** - pytest con PostgreSQL y Redis como servicios, reporte de coverage
+4. **Test Frontend** - Vitest con reporte de coverage
+5. **Deploy** - Despliegue automático a Render (en rama `main`)
 
-# Restaurar backup
-docker-compose exec -T db psql -U postgres duppla < backup.sql
-```
+## Despliegue en Render
 
-### Redis
+El archivo `render.yaml` define el blueprint con los siguientes servicios:
 
-```bash
-# Acceder a Redis CLI
-docker-compose exec redis redis-cli
+| Servicio | Tipo | Plan |
+|----------|------|------|
+| `duppla-backend` | Web Service (Docker) | Starter |
+| `duppla-worker` | Worker (Celery) | Starter |
+| `duppla-frontend` | Static Site | Free |
+| `duppla-db` | PostgreSQL 15 | Free |
+| `duppla-redis` | Redis | Free |
 
-# Ver todas las claves
-docker-compose exec redis redis-cli KEYS "*"
+Los secretos se gestionan mediante **Render Environment Groups** (`duppla-secrets`).
 
-# Limpiar caché
-docker-compose exec redis redis-cli FLUSHALL
-```
+## Endpoints de la API
 
-## 🐛 Solución de Problemas
+| Método | Endpoint | Rol Requerido | Descripción |
+|--------|----------|---------------|-------------|
+| `GET` | `/auth/google` | Público | Iniciar flujo OAuth2 |
+| `GET` | `/api/v1/documents` | Cualquier rol activo | Listar/buscar documentos |
+| `GET` | `/api/v1/documents/{id}` | Cualquier rol activo | Detalle de documento |
+| `POST` | `/api/v1/documents` | Admin, Loader | Crear documento |
+| `PUT` | `/api/v1/documents/{id}` | Admin, Loader | Actualizar documento (solo DRAFT) |
+| `PATCH` | `/api/v1/documents/{id}/status` | Admin, Approver | Cambiar estado |
+| `POST` | `/api/v1/documents/batch/process` | Admin, Loader | Procesar lote |
+| `GET` | `/api/v1/jobs` | Cualquier rol activo | Listar jobs |
+| `GET` | `/api/v1/jobs/{job_id}` | Cualquier rol activo | Estado del job |
+| `GET` | `/api/v1/admin/users` | Admin | Listar usuarios |
+| `PATCH` | `/api/v1/admin/users/{id}/approve` | Admin | Aprobar usuario |
+| `PATCH` | `/api/v1/admin/users/{id}/disable` | Admin | Deshabilitar usuario |
+| `GET` | `/api/v1/admin/logs` | Admin | Logs de auditoría |
+| `GET` | `/health` | Público | Estado de salud |
+| `GET` | `/api/v1/docs` | Público | Swagger UI |
 
-### Error: Puerto ya en uso
+## Patrones de Diseño
 
-```bash
-# Verificar qué está usando el puerto
-lsof -i :8000  # Backend
-lsof -i :5173  # Frontend
-lsof -i :5432  # PostgreSQL
-lsof -i :6379  # Redis
-
-# Matar el proceso
-kill -9 <PID>
-```
-
-### Error: Contenedores no inician
-
-```bash
-# Ver logs detallados
-docker-compose logs
-
-# Limpiar todo y reiniciar
-docker-compose down -v
-docker-compose up --build
-```
-
-### Error: Base de datos no conecta
-
-```bash
-# Verificar que PostgreSQL esté corriendo
-docker-compose ps db
-
-# Ver logs de PostgreSQL
-docker-compose logs db
-
-# Reiniciar PostgreSQL
-docker-compose restart db
-```
-
-## 📚 Próximos Pasos
-
-1. **Configurar Migraciones de Base de Datos**
-   - Usar Alembic para gestionar el esquema de la base de datos
-
-2. **Agregar Autenticación**
-   - Implementar JWT para autenticación de usuarios
-
-3. **Agregar Tests**
-   - Configurar pytest para backend
-   - Configurar Vitest para frontend
-
-4. **CI/CD**
-   - Configurar GitHub Actions o GitLab CI
-
-5. **Monitoreo**
-   - Agregar logging estructurado
-   - Implementar métricas con Prometheus
-
-## 📄 Licencia
-
-[Tu Licencia Aquí]
-
-## 🤝 Contribuir
-
-[Instrucciones para contribuir]
-
-## 📧 Contacto
-
-[Tu información de contacto]
+| Patrón | Aplicación |
+|--------|-----------|
+| **Clean Architecture** | Estructura general del backend (4 capas) |
+| **Repository** | Abstracción de acceso a datos con conversión ORM ↔ entidad |
+| **Use Case** | Un servicio = una responsabilidad, método `execute()` |
+| **State Machine** | Tabla declarativa de transiciones válidas de documentos |
+| **Strategy + Factory** | Sistema de notificaciones con canales intercambiables |
+| **Dependency Injection** | FastAPI `Depends` para servicios y middleware |
+| **Container/Presentational** | Pages (lógica) vs Components (UI) en frontend |
+| **Guard Pattern** | `ProtectedRoute` con verificación de auth + rol |
+| **Interceptor** | Axios interceptors para JWT y manejo global de 401 |
